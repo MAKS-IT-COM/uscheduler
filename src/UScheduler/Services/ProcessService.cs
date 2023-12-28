@@ -16,11 +16,20 @@ namespace UScheduler.Services {
       Process? process = null;
 
       try {
+        if (GetRunningProcesses().Any(x => x.Value.StartInfo.FileName == processPath)) {
+          _logger.LogInformation($"Process {processPath} is already running");
+          return;
+        }
+
         process = new Process();
-        process.StartInfo.FileName = processPath;
-        process.StartInfo.UseShellExecute = false;
-        process.StartInfo.RedirectStandardOutput = true;
-        process.StartInfo.RedirectStandardError = true;
+
+        process.StartInfo = new ProcessStartInfo {
+          FileName = processPath,
+          WorkingDirectory = Path.GetDirectoryName(processPath),
+          UseShellExecute = false,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true
+        };
 
         foreach (var arg in args)
           process.StartInfo.ArgumentList.Add(arg);
@@ -41,14 +50,17 @@ namespace UScheduler.Services {
         }
       }
       catch (OperationCanceledException) {
-        _logger.LogInformation($"Process {processPath} was cancelled");
+        // When the stopping token is canceled, for example, a call made from services.msc,
+        // we shouldn't exit with a non-zero exit code. In other words, this is expected...
+        _logger.LogWarning($"Process {processPath} was canceled");
       }
       catch (Exception ex) {
         _logger.LogError($"Error running process {processPath}: {ex.Message}");
       }
       finally {
         if (process != null && _runningProcesses.ContainsKey(process.Id)) {
-          _runningProcesses.TryRemove(process.Id, out _);
+          TerminateProcessById(process.Id);
+
           _logger.LogInformation($"Process {processPath} with ID {process.Id} removed from running processes");
         }
       }
@@ -60,15 +72,28 @@ namespace UScheduler.Services {
     }
 
     public void TerminateProcessById(int processId) {
-      if (_runningProcesses.TryRemove(processId, out var process)) {
-        _logger.LogInformation($"Terminating process with ID {processId}");
-        process.Kill();
-        _logger.LogInformation($"Process with ID {processId} terminated");
+      // Check if the process is in the running processes list
+      if (!_runningProcesses.TryGetValue(processId, out var processToTerminate)) {
+        _logger.LogWarning($"Failed to terminate process {processId}. Process not found.");
+        return;
       }
-      else {
-        _logger.LogWarning($"Failed to terminate process with ID {processId}. Process not found.");
+
+      // Kill the process
+      try {
+        processToTerminate.Kill(true);
+        _logger.LogInformation($"Process {processId} terminated");
+      }
+      catch (Exception ex) {
+        _logger.LogError($"Error terminating process {processId}: {ex.Message}");
+      }
+
+      // Check if the process has exited
+      if (!processToTerminate.HasExited) {
+        _logger.LogWarning($"Failed to terminate process {processId}. Process still running.");
+        TerminateProcessById(processId);
       }
     }
+
 
     public void TerminateAllProcesses() {
       foreach (var process in _runningProcesses) {

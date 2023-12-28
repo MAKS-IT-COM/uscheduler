@@ -29,7 +29,7 @@ I have also prepared ***.cmd** file to simplify service system integration:
 Install.cmd
 
 ```bat
-    sc.exe create "Unified Scheduler Service" binpath="%~dp0UScheduler.exe
+    sc.exe create "Unified Scheduler Service" binpath="%~dp0UScheduler.exe"
     pause
 ```
 

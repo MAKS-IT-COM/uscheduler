@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 using UScheduler.Services;
 
 namespace UScheduler.BackgroundServices;
@@ -30,25 +31,22 @@ public sealed class ProcessBackgroundService : BackgroundService {
 
         //stop background service if there are no processes to run
         if (processes.Count == 0) {
-          _logger.LogInformation("No processes to run, stopping ProcessBackgroundService");
+          _logger.LogWarning("No processes to run, stopping ProcessBackgroundService");
           break;
         }
 
         foreach (var process in processes) {
-          if (process.GetPathOrDefault == string.Empty)
-            continue;
-
           var processPath = process.GetPathOrDefault;
           var processArgs = process.GetArgsOrDefault;
 
-          if (_processService.GetRunningProcesses().Any(x => x.Value.StartInfo.FileName == processPath)) {
-            _logger.LogInformation($"Process {processPath} is already running");
+          if (processPath == string.Empty)
             continue;
-          }
 
           _logger.LogInformation($"Running process {processPath} with arguments {string.Join(", ", processArgs)}");
           _processService.RunProcess(processPath, processArgs, stoppingToken);
+
         }
+        
 
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
       }
@@ -57,8 +55,6 @@ public sealed class ProcessBackgroundService : BackgroundService {
       // When the stopping token is canceled, for example, a call made from services.msc,
       // we shouldn't exit with a non-zero exit code. In other words, this is expected...
       _logger.LogInformation("Stopping ProcessBackgroundService due to cancellation request");
-
-      _processService.TerminateAllProcesses();
     }
     catch (Exception ex) {
       _logger.LogError(ex, "{Message}", ex.Message);
@@ -73,5 +69,16 @@ public sealed class ProcessBackgroundService : BackgroundService {
       // recovery options, we need to terminate the process with a non-zero exit code.
       Environment.Exit(1);
     }
+  }
+
+  public override Task StopAsync(CancellationToken stoppingToken) {
+    // Perform cleanup tasks here
+    _logger.LogInformation("Stopping ProcessBackgroundService");
+
+    _processService.TerminateAllProcesses();
+
+    _logger.LogInformation("All processes terminated");
+
+    return Task.CompletedTask;
   }
 }

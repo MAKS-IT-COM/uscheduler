@@ -1,13 +1,15 @@
 using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.Extensions.Logging.EventLog;
+using System.Runtime.InteropServices;
 using UScheduler;
 using UScheduler.BackgroundServices;
 using UScheduler.Services;
 
 // read configuration from appsettings.json
 var configurationRoot = new ConfigurationBuilder()
-  .SetBasePath(Directory.GetCurrentDirectory())
+  .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
   .AddJsonFile("appsettings.json", optional: true)
+  .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true)
   .Build();
 
 // bind Configuration section inside configuration to a new instance of Settings
@@ -19,13 +21,11 @@ builder.Services.AddWindowsService(options => {
   options.ServiceName = configuration.ServiceNameOrDefault;
 });
 
-LoggerProviderOptions.RegisterProviderOptions<
-    EventLogSettings, EventLogLoggerProvider>(builder.Services);
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+  LoggerProviderOptions.RegisterProviderOptions<
+      EventLogSettings, EventLogLoggerProvider>(builder.Services);
+}
 
-
-
-
-// register configuration as IOptions<Configuration>
 builder.Services.Configure<Configuration>(configurationRoot.GetSection("Configurations"));
 
 builder.Services.AddSingleton<ProcessService>();

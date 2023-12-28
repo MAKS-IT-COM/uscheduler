@@ -27,20 +27,15 @@ namespace UScheduler {
   public class Configuration {
 
     public string? ServiceName { get; set; }
-    public string? Description { get; set; }
-    public string? DisplayName { get; set; }
 
     public List<PowershellScript>? Powershell { get; set; }
 
     public List<ProcessConfiguration>? Processes { get; set; }
 
     public string ServiceNameOrDefault => ServiceName ?? string.Empty;
-    public string DescriptionOrDefault => Description ?? string.Empty;
 
-    public string DisplayNameOrDefault => DisplayName ?? string.Empty;
+    public List<PowershellScript> PowershellOrDefault => Powershell ?? [];
 
-    public List<PowershellScript> PowershellOrDefault => Powershell ?? new List<PowershellScript>();
-
-    public List<ProcessConfiguration> ProcessesOrDefault => Processes ?? new List<ProcessConfiguration>();
+    public List<ProcessConfiguration> ProcessesOrDefault => Processes ?? [];
   }
 }

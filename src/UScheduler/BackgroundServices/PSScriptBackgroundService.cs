@@ -30,23 +30,18 @@ namespace UScheduler.BackgroundServices {
 
           //stop background service if there are no PowerShell scripts to run
           if (psScripts.Count == 0) {
-            _logger.LogInformation("No PowerShell scripts to run, stopping PSScriptBackgroundService");
+            _logger.LogWarning("No PowerShell scripts to run, stopping PSScriptBackgroundService");
             break;
           }
 
           foreach (var psScript in psScripts) {
-            if (psScript.GetPathOrDefault == string.Empty)
-              continue;
-
             var scriptPath = psScript.GetPathOrDefault;
 
-            if (_psScriptService.GetRunningScriptTasks().Contains(scriptPath)) {
-              _logger.LogInformation($"PowerShell script {scriptPath} is already running");
+            if (scriptPath == string.Empty)
               continue;
-            }
 
             _logger.LogInformation($"Running PowerShell script {scriptPath}");
-            _psScriptService.RunScript(scriptPath, psScript.GetIsSignedOrDefault);
+            _psScriptService.RunScript(scriptPath, psScript.GetIsSignedOrDefault, stoppingToken);
           }
 
           await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
@@ -56,8 +51,6 @@ namespace UScheduler.BackgroundServices {
         // When the stopping token is canceled, for example, a call made from services.msc,
         // we shouldn't exit with a non-zero exit code. In other words, this is expected...
         _logger.LogInformation("Stopping PSScriptBackgroundService due to cancellation request");
-
-        _psScriptService.TerminateAllScripts();
       }
       catch (Exception ex) {
         _logger.LogError(ex, "{Message}", ex.Message);
@@ -72,6 +65,18 @@ namespace UScheduler.BackgroundServices {
         // recovery options, we need to terminate the process with a non-zero exit code.
         Environment.Exit(1);
       }
+    }
+
+
+    public override Task StopAsync(CancellationToken stoppingToken) {
+      // Perform cleanup tasks here
+      _logger.LogInformation("Stopping PSScriptBackgroundService");
+
+      _psScriptService.TerminateAllScripts();
+
+      _logger.LogInformation("PSScriptBackgroundService stopped");
+
+      return Task.CompletedTask;
     }
   }
 }

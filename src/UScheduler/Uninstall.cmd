@@ -1,5 +1,2 @@
-﻿"%~dp0PSScriptsService.exe" uninstall
-
-sc.exe delete ".NET Joke Service"
-
+sc.exe delete "Unified Scheduler Service"
 pause

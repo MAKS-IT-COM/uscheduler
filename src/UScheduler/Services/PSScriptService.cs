@@ -17,8 +17,13 @@ namespace UScheduler.Services {
       }
     }
 
-    public Task RunScript(string scriptPath, bool signed) {
+    public Task RunScript(string scriptPath, bool signed, CancellationToken stoppingToken) {
       _logger.LogInformation($"Preparing to run script {scriptPath}");
+
+      if (GetRunningScriptTasks().Contains(scriptPath)) {
+        _logger.LogInformation($"PowerShell script {scriptPath} is already running");
+        return Task.CompletedTask;
+      }
 
       if (!File.Exists(scriptPath)) {
         _logger.LogError($"Script file {scriptPath} does not exist");
@@ -60,11 +65,17 @@ namespace UScheduler.Services {
           ps.Invoke();
         }
       }
+
+      catch (OperationCanceledException) {
+        // When the stopping token is canceled, for example, a call made from services.msc,
+        // we shouldn't exit with a non-zero exit code. In other words, this is expected...
+        _logger.LogInformation($"Stopping script {scriptPath} due to cancellation request");
+      }
       catch (Exception ex) {
         _logger.LogError($"Error running script {scriptPath}: {ex.Message}");
       }
       finally {
-        _runningScripts.TryRemove(scriptPath, out _);
+        TerminateScript(scriptPath);
         _logger.LogInformation($"Script {scriptPath} completed and removed from running scripts");
       }
 

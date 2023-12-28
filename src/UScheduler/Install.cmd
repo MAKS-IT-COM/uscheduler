@@ -1,5 +1,3 @@
-﻿"%~dp0PSScriptsService.exe" install
-
-sc.exe create ".NET Joke Service" binpath="C:\Path\To\App.WindowsService.exe"
-sc.exe create "Svc Name" binpath="C:\Path\To\App.exe --contentRoot C:\Other\Path"
+sc.exe create "Unified Scheduler Service" binpath="%~dp0UScheduler.exe"
+sc description "Unified Scheduler Service" "Windows service, which allows you to invoke PowerShell Scripts and Processes"
 pause
