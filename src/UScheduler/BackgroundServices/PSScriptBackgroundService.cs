@@ -51,9 +51,12 @@ namespace UScheduler.BackgroundServices {
         // When the stopping token is canceled, for example, a call made from services.msc,
         // we shouldn't exit with a non-zero exit code. In other words, this is expected...
         _logger.LogInformation("Stopping PSScriptBackgroundService due to cancellation request");
+        _psScriptService.TerminateAllScripts();
       }
       catch (Exception ex) {
         _logger.LogError(ex, "{Message}", ex.Message);
+
+        _psScriptService.TerminateAllScripts();
 
         // Terminates this process and returns an exit code to the operating system.
         // This is required to avoid the 'BackgroundServiceExceptionBehavior', which

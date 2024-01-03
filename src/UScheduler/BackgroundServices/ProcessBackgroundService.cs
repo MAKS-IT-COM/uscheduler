@@ -55,9 +55,12 @@ public sealed class ProcessBackgroundService : BackgroundService {
       // When the stopping token is canceled, for example, a call made from services.msc,
       // we shouldn't exit with a non-zero exit code. In other words, this is expected...
       _logger.LogInformation("Stopping ProcessBackgroundService due to cancellation request");
+      _processService.TerminateAllProcesses();
     }
     catch (Exception ex) {
       _logger.LogError(ex, "{Message}", ex.Message);
+
+      _processService.TerminateAllProcesses();
 
       // Terminates this process and returns an exit code to the operating system.
       // This is required to avoid the 'BackgroundServiceExceptionBehavior', which
