@@ -1,153 +1,408 @@
-# Unified Scheduler Service
 
-Is'a completelly rewritten in .NET8 version of **PowerShell Scrip Service** realized in .Net Framework 4.8
 
-As previously, this project still has an aim to allow **System Administrators** and also to who **Thinks to be System Administrator** to launch **Power Shell** scripts and **Console Programs** as **Windows Service**.
+# MaksIT Unified Scheduler Service
 
-## Latest builds
+A modern, fully rewritten Windows service built on **.NET 10** for scheduling and running PowerShell scripts and console applications.
+Designed for system administrators — and also for those who *feel like* system administrators — who need a predictable, resilient, and secure background execution environment.
 
-## How to Install and Uninstall Service
+---
 
-### Service Install
+## Table of Contents
 
-```powershell
-sc.exe create "Unified Scheduler Service" binpath="C:\Path\To\UScheduler.exe"
-```
+- [MaksIT Unified Scheduler Service](#maksit-unified-scheduler-service)
+  - [Table of Contents](#table-of-contents)
+  - [Features at a Glance](#features-at-a-glance)
+  - [Installation](#installation)
+    - [Recommended (using bundled scripts)](#recommended-using-bundled-scripts)
+    - [Manual Installation](#manual-installation)
+  - [Configuration (`appsettings.json`)](#configuration-appsettingsjson)
+    - [PowerShell Scripts](#powershell-scripts)
+    - [Processes](#processes)
+  - [How It Works](#how-it-works)
+    - [PowerShell Execution Parameters](#powershell-execution-parameters)
+    - [Thread Layout](#thread-layout)
+  - [Reusable Scheduler Module (`SchedulerTemplate.psm1`)](#reusable-scheduler-module-schedulertemplatepsm1)
+    - [Example usage](#example-usage)
+  - [Security](#security)
+  - [Logging](#logging)
+  - [Contact](#contact)
+  - [License](#license)
+- [Appendix](#appendix)
+  - [SchedulerTemplate.psm1 (Full Source)](#schedulertemplatepsm1-full-source)
 
-with providing custom `contentRoot`:
+---
 
-```powershell
-sc.exe create "Unified Scheduler Service" binpath="C:\Path\To\UScheduler.exe --contentRoot C:\Other\Path"
-```
+## Features at a Glance
 
-Edit `appsettings.json`` according your needs. Differently from previuos version it doesn't scans a folders for scripts and same for programs, but you have explicitly set what should be launched. Also, when changes are made, you have to restart service. This will improve security of your environment.
+* **.NET 10 Worker Service** – clean, robust, stable.
+* **Strongly typed configuration** via `appsettings.json`.
+* **Run PowerShell scripts & executables concurrently** (each in its own thread).
+* **Signature enforcement** (AllSigned by default).
+* **Automatic restart-on-failure** for supervised processes.
+* **Extensible logging** (file + console).
+* **Simple Install.cmd / Uninstall.cmd**.
+* **Reusable scheduling module**: `SchedulerTemplate.psm1`.
+* **Thread-isolated architecture** — individual failures do not affect others.
 
-Then **start** your **Unified Scheduler Service**
+---
 
-I have also prepared ***.cmd** file to simplify service system integration:
+## Installation
 
+### Recommended (using bundled scripts)
+
+```bat
+cd /d path\to\src\MaksIT.UScheduler
 Install.cmd
-
-```bat
-    sc.exe create "Unified Scheduler Service" binpath="%~dp0UScheduler.exe"
-    pause
 ```
 
->These ***.cmd** files have to be launched with **Admin** privileges.
+To uninstall:
 
-After installation you have to start your newly created windows service: Win+R -> services.msc -> Enter -> Search by DisplayName.
+```bat
+Uninstall.cmd
+```
 
-### Service Uninstall
+### Manual Installation
 
 ```powershell
-sc.exe "Unified Scheduler Service"
+sc.exe create "MaksIT.UScheduler Service" binpath="C:\Path\To\MaksIT.UScheduler.exe"
+sc.exe start "MaksIT.UScheduler Service"
 ```
 
-Uninstall.cmd
+Manual uninstall:
 
-```bat
-    sc.exe "Unified Scheduler Service"
-    pause
+```powershell
+sc.exe delete "MaksIT.UScheduler Service"
 ```
 
-## How it works
+---
 
-Here is a short explanation of two functional parts currently available.
-
-### Processes
-
-> Warning: For the moment I haven't realized any scheduling functionality for `console applications`, so be carefull, if your program is not a service kind, like `node derver`, `syncthing` ecc... it will execute it continuously every 10 senconds after completes.
-
-This functionality is aimed to execute `console app services` which do not provide any windows service integration, and keeps it always alive.
-
-### Powershell
-
-Executes scripts whith following command parameters every 10 seconds:
-
-```C#
-    myCommand.Parameters.Add(new CommandParameter("Automated", true));
-    myCommand.Parameters.Add(new CommandParameter("CurrentDateTimeUtc", DateTime.UtcNow.ToString("o")));
-```
-
-Retrieve parameters this way:
-
-```PowerShell
-    [CmdletBinding()]
-    param (
-        [switch]$Automated,
-        [string]$CurrentDateTime
-    )
-
-    if($CurrentDateTime) {
-        [datetime]$CurrentDateTime = [datetime]::parseexact($CurrentDateTime, 'dd/MM/yyyy HH:mm:ss', $null)
-    }
-
-    Write-Host "Automated: $Automated" -ForegroundColor Green
-    Write-Host "CurrentDateTime: $CurrentDateTime" -ForegroundColor Green
-```
-
-Thanks to that, it's possible to create standalone scripts or automated scheduled scripts, which will be executed according to the script managed schedule logic.
-
-### Thread organization
-
-Every script and program is launched in its **own thread**, so if one crashes, others are able to continue:
-
-```
-    Unified Scheduler Service Thread
-    ├── Powershell
-    │   ├── /Scripts/SomeStuff_1/StartScript.ps1 Thread
-    │   ├── /Scripts/SomeStuff_2/StartScript.ps1 Thread
-    │   └── ...
-    └── Processes
-        ├── /Programs/SomeStuff_1/Program.exe
-        ├── /Programs/SomeStuff_2/Program.exe
-        └── ...
-```
-
-> By default It's set to execute only **signed** scrips, but if you don't care about your environment security, it's possible to launch them in **unrestricted** mode.
->
-> Continue to read to see other possible settings...
-
-## Configurations
-
-Here are all currently available configurations inside `appsettings.json`:
+## Configuration (`appsettings.json`)
 
 ```json
 {
-  //...
-
-  "Configurations": {
-    "ServiceName": "UScheduler",
-    "Description": "Windows service, which allows you to invoke PowerShell Scripts and Processes",
-    "DisplayName": "Unified Scheduler Service",
+  "Configuration": {
+    "ServiceName": "MaksIT.UScheduler",
+    "LogDir": "C:\\Logs",
 
     "Powershell": [
-      {
-        "Path": "C:\\UScheduler\\Scripts\\Demo\\StartScript.ps1",
-        "Signed": true
-      }
+      { "Path": "C:\\Scripts\\MyScript.ps1", "IsSigned": true }
     ],
 
     "Processes": [
-      {
-        "Path": "C:\\UScheduler\\Programs\\syncthing-windows-amd64-v1.27.1\\syncthing.exe",
-        "Args": [],
-        "RestartOnFailure": true
-      }
+      { "Path": "C:\\Programs\\MyApp.exe", "Args": ["--option"], "RestartOnFailure": true }
     ]
   }
 }
 ```
 
-Let's see each one:
+### PowerShell Scripts
 
-* ServiceName - System service name. I suggest to use short names without spaces or other strange characters. See [What are valid characters in a Windows service (key) name?](https://stackoverflow.com/questions/801280/what-are-valid-characters-in-a-windows-service-key-name).
-* Description - Description you wants to give to this service. Just put something very serious and technically complex to admire what kind of DUDE you are!
-* DisplayName - Same thing like for ServiceName, but you are free to use spaces.
-* Powershell:
-  * ScriptsPath - Specify script to launch.
-  * SignedScripts - **true** for **AllSigned** or **false** for **Unrestricted**.
-* Processes:
-  * Path - Specify program to launch.
-  * Args - Program command line arguments
-  * RestartOnFailure - Allows to restart if something went wrong with program.
+* `Path` — full `.ps1` file path
+* `IsSigned` — `true` enforces AllSigned, `false` runs unrestricted
+
+### Processes
+
+* `Path` — executable
+* `Args` — command-line arguments
+* `RestartOnFailure` — restart logic handled by service
+
+---
+
+## How It Works
+
+Each script or process is executed in its own managed thread.
+
+### PowerShell Execution Parameters
+
+```csharp
+myCommand.Parameters.Add(new CommandParameter("Automated", true));
+myCommand.Parameters.Add(new CommandParameter("CurrentDateTimeUtc", DateTime.UtcNow.ToString("o")));
+```
+
+Inside the script:
+
+```powershell
+param (
+    [switch]$Automated,
+    [string]$CurrentDateTimeUtc
+)
+```
+
+### Thread Layout
+
+```
+Unified Scheduler Service
+├── PowerShell
+│   ├── ScriptA.ps1     Thread
+│   ├── ScriptB.ps1     Thread
+│   └── ...
+└── Processes
+    ├── ProgramA.exe     Thread
+    ├── ProgramB.exe     Thread
+    └── ...
+```
+
+A crash in one thread **never stops the service** or other components.
+
+---
+
+## Reusable Scheduler Module (`SchedulerTemplate.psm1`)
+
+This module provides:
+
+* Scheduling by:
+
+  * Month
+  * Weekday
+  * Exact time(s)
+  * Minimum interval
+* Automatic lock file (no concurrent execution)
+* Last-run file tracking
+* Unified callback execution pattern
+* Logging helpers (Write-Log)
+
+### Example usage
+
+```powershell
+param (
+    [switch]$Automated,
+    [string]$CurrentDateTimeUtc
+)
+
+Import-Module "$PSScriptRoot\..\SchedulerTemplate.psm1" -Force
+
+$Config = @{
+    RunMonth = @()
+    RunWeekday = @()
+    RunTime = @("22:52")
+    MinIntervalMinutes = 10
+}
+
+function Start-BusinessLogic {
+     Write-Log "Executing business logic..." -Automated:$Automated
+}
+
+Invoke-ScheduledExecution -Config $Config -Automated:$Automated -CurrentDateTimeUtc $CurrentDateTimeUtc -ScriptBlock {
+    Start-BusinessLogic
+}
+```
+
+**Workflow for new scheduled scripts:**
+
+1. Copy template
+2. Modify `$Config`
+3. Implement `Start-BusinessLogic`
+4. Add script to `appsettings.json`
+
+That’s it — the full scheduling engine is reused automatically.
+
+---
+
+## Security
+
+* Signed scripts required by default.
+* Scripts are auto-unblocked before execution.
+* Unrestricted execution can be enabled if needed (not recommended on production systems).
+
+---
+
+## Logging
+
+* Console logging
+* File logging under the directory specified by `LogDir`
+* All events (start, stop, crash, restart, error, skip) are logged
+
+---
+
+## Contact
+
+Maksym Sadovnychyy – MAKS-IT, 2025
+Email: maksym.sadovnychyy@gmail.com
+
+---
+
+## License
+
+MIT License
+Copyright (c) 2025
+Maksym Sadovnychyy – MAKS-IT
+maksym.sadovnychyy@gmail.com
+
+---
+
+# Appendix
+
+## SchedulerTemplate.psm1 (Full Source)
+
+```powershell
+# ======================================================================
+# SchedulerTemplate.psm1 - Scheduling + Lock + Interval + Callback Runner
+# ======================================================================
+
+function Write-Log {
+    param(
+        [string]$Message,
+        [switch]$Automated,
+        [string]$Color = 'White'
+    )
+
+    if ($Automated) {
+        Write-Output $Message
+    }
+    else {
+        Write-Host $Message -ForegroundColor $Color
+    }
+}
+
+function Get-CurrentUtcDateTime {
+    param([string]$ExternalDateTime, [switch]$Automated)
+
+    if ($ExternalDateTime) {
+        try {
+            return [datetime]::Parse($ExternalDateTime).ToUniversalTime()
+        }
+        catch {
+            try {
+                return [datetime]::ParseExact($ExternalDateTime, 'dd/MM/yyyy HH:mm:ss', $null).ToUniversalTime()
+            }
+            catch {
+                Write-Log "Failed to parse CurrentDateTimeUtc ('$ExternalDateTime'). Using system time (UTC)." -Automated:$Automated -Color 'Red'
+                return (Get-Date).ToUniversalTime()
+            }
+        }
+    }
+    return (Get-Date).ToUniversalTime()
+}
+
+function Test-ScheduleMonth { param([datetime]$DateTime, [array]$Months)
+    $name = $DateTime.ToString('MMMM')
+    return ($Months.Count -eq 0) -or ($Months -contains $name)
+}
+function Test-ScheduleWeekday { param([datetime]$DateTime, [array]$Weekdays)
+    $name = $DateTime.DayOfWeek.ToString()
+    return ($Weekdays.Count -eq 0) -or ($Weekdays -contains $name)
+}
+function Test-ScheduleTime { param([datetime]$DateTime, [array]$Times)
+    $t = $DateTime.ToString('HH:mm')
+    return ($Times.Count -eq 0) -or ($Times -contains $t)
+}
+
+function Test-Schedule {
+    param(
+        [datetime]$DateTime,
+        [array]$RunMonth,
+        [array]$RunWeekday,
+        [array]$RunTime
+    )
+
+    return (Test-ScheduleMonth -DateTime $DateTime -Months $RunMonth) -and
+           (Test-ScheduleWeekday -DateTime $DateTime -Weekdays $RunWeekday) -and
+           (Test-ScheduleTime -DateTime $DateTime -Times $RunTime)
+}
+
+function Test-Interval {
+    param([datetime]$LastRun,[datetime]$Now,[int]$MinIntervalMinutes)
+    return $Now -ge $LastRun.AddMinutes($MinIntervalMinutes)
+}
+
+function Test-ScheduledExecution {
+    param(
+        [switch]$Automated,
+        [string]$CurrentDateTimeUtc,
+        [hashtable]$Config,
+        [string]$LastRunFilePath
+    )
+
+    $now = Get-CurrentUtcDateTime -ExternalDateTime $CurrentDateTimeUtc -Automated:$Automated
+    $shouldRun = $true
+
+    if ($Automated) {
+        Write-Log "Automated: $Automated" -Automated:$Automated -Color 'Green'
+        Write-Log "Current UTC Time: $now" -Automated:$Automated -Color 'Green'
+
+        if (-not (Test-Schedule -DateTime $now -RunMonth $Config.RunMonth -RunWeekday $Config.RunWeekday -RunTime $Config.RunTime)) {
+            Write-Log "Execution skipped due to schedule." -Automated:$Automated -Color 'Yellow'
+            $shouldRun = $false
+        }
+    }
+
+    if ($shouldRun -and $LastRunFilePath -and (Test-Path $LastRunFilePath)) {
+        $lastRun = Get-Content $LastRunFilePath | Select-Object -First 1
+        if ($lastRun) {
+            [datetime]$lr = $lastRun
+            if (-not (Test-Interval -LastRun $lr -Now $now -MinIntervalMinutes $Config.MinIntervalMinutes)) {
+                Write-Log "Last run at $lr. Interval not reached." -Automated:$Automated -Color 'Yellow'
+                $shouldRun = $false
+            }
+        }
+    }
+
+    return @{
+        ShouldExecute = $shouldRun
+        Now = $now
+    }
+}
+
+function New-LockGuard {
+    param([string]$LockFile,[switch]$Automated)
+
+    if (Test-Path $LockFile) {
+        Write-Log "Guard: Lock file exists ($LockFile). Skipping." -Automated:$Automated -Color 'Red'
+        return $false
+    }
+    try {
+        New-Item -Path $LockFile -ItemType File -Force | Out-Null
+        return $true
+    }
+    catch {
+        Write-Log "Guard: Cannot create lock file ($LockFile)." -Automated:$Automated -Color 'Red'
+        return $false
+    }
+}
+
+function Remove-LockGuard {
+    param([string]$LockFile,[switch]$Automated)
+    if (Test-Path $LockFile) {
+        Remove-Item $LockFile -Force
+        Write-Log "Lock removed: $LockFile" -Automated:$Automated -Color 'Cyan'
+    }
+}
+
+# ======================================================================
+# Main unified executor (callback-based)
+# ======================================================================
+function Invoke-ScheduledExecution {
+    param(
+        [scriptblock]$ScriptBlock,
+        [hashtable]$Config,
+        [switch]$Automated,
+        [string]$CurrentDateTimeUtc
+    )
+
+    $scriptPath  = $MyInvocation.ScriptName
+    $lastRunFile = [IO.Path]::ChangeExtension($scriptPath, ".lastRun")
+    $lockFile    = [IO.Path]::ChangeExtension($scriptPath, ".lock")
+
+    # Check schedule
+    $schedule = Test-ScheduledExecution -Automated:$Automated -CurrentDateTimeUtc $CurrentDateTimeUtc -Config $Config -LastRunFilePath $lastRunFile
+    if (-not $schedule.ShouldExecute) {
+        Write-Log "Execution skipped." -Automated:$Automated -Color 'Yellow'
+        return
+    }
+
+    # Lock
+    if (-not (New-LockGuard -LockFile $lockFile -Automated:$Automated)) {
+        return
+    }
+
+    try {
+        $schedule.Now.ToString("o") | Set-Content $lastRunFile
+        & $ScriptBlock
+    }
+    finally {
+        Remove-LockGuard -LockFile $lockFile -Automated:$Automated
+    }
+}
+
+Export-ModuleMember -Function * -Alias *
+```

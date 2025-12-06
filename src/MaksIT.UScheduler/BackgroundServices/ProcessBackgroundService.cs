@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Options;
-using System.Text.Json;
-using UScheduler.Services;
+using MaksIT.UScheduler.Services;
 
-namespace UScheduler.BackgroundServices;
+
+namespace MaksIT.UScheduler.BackgroundServices;
 
 public sealed class ProcessBackgroundService : BackgroundService {
 
@@ -24,29 +24,21 @@ public sealed class ProcessBackgroundService : BackgroundService {
     _logger.LogInformation("Starting ProcessBackgroundService");
 
     try {
-      var processes = _configuration.ProcessesOrDefault;
+      var processes = _configuration.Processes;
 
       while (!stoppingToken.IsCancellationRequested) {
         _logger.LogInformation("Checking for processes to run");
 
-        //stop background service if there are no processes to run
-        if (processes.Count == 0) {
-          _logger.LogWarning("No processes to run, stopping ProcessBackgroundService");
-          break;
-        }
-
         foreach (var process in processes) {
-          var processPath = process.GetPathOrDefault;
-          var processArgs = process.GetArgsOrDefault;
+          var processPath = process.Path;
+          var processArgs = process.Args;
 
           if (processPath == string.Empty)
             continue;
 
           _logger.LogInformation($"Running process {processPath} with arguments {string.Join(", ", processArgs)}");
           _processService.RunProcess(processPath, processArgs, stoppingToken);
-
         }
-        
 
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
       }
@@ -55,12 +47,9 @@ public sealed class ProcessBackgroundService : BackgroundService {
       // When the stopping token is canceled, for example, a call made from services.msc,
       // we shouldn't exit with a non-zero exit code. In other words, this is expected...
       _logger.LogInformation("Stopping ProcessBackgroundService due to cancellation request");
-      _processService.TerminateAllProcesses();
     }
     catch (Exception ex) {
       _logger.LogError(ex, "{Message}", ex.Message);
-
-      _processService.TerminateAllProcesses();
 
       // Terminates this process and returns an exit code to the operating system.
       // This is required to avoid the 'BackgroundServiceExceptionBehavior', which
@@ -77,8 +66,6 @@ public sealed class ProcessBackgroundService : BackgroundService {
   public override Task StopAsync(CancellationToken stoppingToken) {
     // Perform cleanup tasks here
     _logger.LogInformation("Stopping ProcessBackgroundService");
-
-    _processService.TerminateAllProcesses();
 
     _logger.LogInformation("All processes terminated");
 
