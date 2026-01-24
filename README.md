@@ -11,6 +11,7 @@ Designed for system administrators — and also for those who *feel like* system
 
 - [MaksIT Unified Scheduler Service](#maksit-unified-scheduler-service)
   - [Table of Contents](#table-of-contents)
+  - [Scripts Examples](#scripts-examples)
   - [Features at a Glance](#features-at-a-glance)
   - [Installation](#installation)
     - [Recommended (using bundled scripts)](#recommended-using-bundled-scripts)
@@ -29,6 +30,10 @@ Designed for system administrators — and also for those who *feel like* system
   - [License](#license)
 - [Appendix](#appendix)
   - [SchedulerTemplate.psm1 (Full Source)](#schedulertemplatepsm1-full-source)
+
+## Scripts Examples
+
+- [Hyper-V Backup](./examples/HyperV-Backup/README.md) - Production-ready Hyper-V VM backup solution with scheduling and retention management
 
 ---
 
