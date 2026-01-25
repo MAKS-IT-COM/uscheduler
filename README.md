@@ -34,6 +34,7 @@ Designed for system administrators — and also for those who *feel like* system
 ## Scripts Examples
 
 - [Hyper-V Backup](./examples/HyperV-Backup/README.md) - Production-ready Hyper-V VM backup solution with scheduling and retention management
+- [File-Sync](./examples//File-Sync/README.md) - [FreeFileSync](https://freefilesync.org/) batch job execution
 
 ---
 
