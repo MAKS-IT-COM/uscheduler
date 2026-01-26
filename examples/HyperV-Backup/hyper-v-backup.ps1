@@ -13,9 +13,9 @@ param (
 .DESCRIPTION
     Production-ready Hyper-V backup solution with scheduling, checkpoints, and retention management.
 .VERSION
-    1.0.0
+    1.0.1
 .DATE
-    2026-01-24
+    2026-01-26
 .NOTES
     - Requires Administrator privileges
     - Requires Hyper-V PowerShell module
@@ -23,8 +23,8 @@ param (
 #>
 
 # Script Version
-$ScriptVersion = "1.0.0"
-$ScriptDate = "2026-01-24"
+$ScriptVersion = "1.0.1"
+$ScriptDate = "2026-01-26"
 
 try {
     Import-Module "$PSScriptRoot\..\SchedulerTemplate.psm1" -Force -ErrorAction Stop
@@ -67,7 +67,6 @@ $BackupRoot = $settings.backupRoot
 $CredentialEnvVar = $settings.credentialEnvVar
 $TempExportRoot = $settings.tempExportRoot
 $RetentionCount = $settings.retentionCount
-$MinFreeSpaceGB = $settings.minFreeSpaceGB
 $BlacklistedVMs = $settings.excludeVMs
 
 # Schedule Configuration
@@ -144,19 +143,6 @@ function Test-Prerequisites {
         }
     }
 
-    # Check free space on temp drive
-    if ($MinFreeSpaceGB -gt 0) {
-        $tempDrive = (Get-Item $TempExportRoot).PSDrive.Name
-        $freeSpace = (Get-PSDrive $tempDrive).Free / 1GB
-        
-        if ($freeSpace -lt $MinFreeSpaceGB) {
-            Write-Log "Insufficient free space on drive ${tempDrive}: ($([math]::Round($freeSpace, 2)) GB available, $MinFreeSpaceGB GB required)" -Level Error -Automated:$Automated
-            return $false
-        }
-        
-        Write-Log "Free space on drive ${tempDrive}: $([math]::Round($freeSpace, 2)) GB" -Level Info -Automated:$Automated
-    }
-
     Write-Log "All prerequisites passed" -Level Success -Automated:$Automated
     return $true
 }
@@ -171,6 +157,12 @@ function Connect-BackupShare {
     if (-not $SharePath.StartsWith("\\")) {
         Write-Log "Backup path is local, no authentication needed" -Level Info -Automated:$Automated
         return $true
+    }
+
+    # Validate UNC path format
+    if (-not (Test-UNCPath -Path $SharePath)) {
+        Write-Log "Invalid UNC path format: $SharePath (expected \\server\share)" -Level Error -Automated:$Automated
+        return $false
     }
 
     Write-Log "Authenticating to UNC share: $SharePath" -Level Info -Automated:$Automated
@@ -222,17 +214,75 @@ function Get-VMDiskSize {
     try {
         $vm = Get-VM -Name $VMName -ErrorAction Stop
         $vhds = $vm | Get-VMHardDiskDrive | Get-VHD -ErrorAction SilentlyContinue
-        
+
         if ($vhds) {
             $totalSize = ($vhds | Measure-Object -Property FileSize -Sum).Sum
             return $totalSize
         }
-        
+
         return 0
     }
     catch {
         Write-Log "Warning: Could not determine disk size for VM '$VMName': $_" -Level Warning -Automated:$Automated
         return 0
+    }
+}
+
+function Get-PathFreeSpace {
+    param([string]$Path)
+
+    try {
+        $uri = [System.Uri]$Path
+
+        if ($uri.IsUnc) {
+            $server = $uri.Host
+            $share = $uri.Segments[1].TrimEnd('/')
+
+            # Query remote share info via WMI
+            $shareInfo = Get-WmiObject -Class Win32_LogicalDisk -ComputerName $server -ErrorAction Stop |
+                Where-Object { $_.DeviceID -or $_.ProviderName -like "*$share*" }
+
+            if ($shareInfo) {
+                return $shareInfo.FreeSpace
+            }
+
+            # Fallback: try to get info from mapped drive or direct query
+            $driveInfo = [System.IO.DriveInfo]::GetDrives() |
+                Where-Object { $_.DriveType -eq 'Network' -and $_.Name -and (Test-Path $Path) }
+
+            if ($driveInfo) {
+                return $driveInfo.AvailableFreeSpace
+            }
+
+            # Last resort: create a temp file and check available space
+            if (Test-Path $Path) {
+                $testFile = Join-Path $Path ".space_check_$(Get-Random)"
+                try {
+                    [System.IO.File]::WriteAllText($testFile, "")
+                    $drive = [System.IO.Path]::GetPathRoot((Resolve-Path $Path).Path)
+                    $info = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -eq $drive }
+                    if ($info) {
+                        return $info.Free
+                    }
+                }
+                finally {
+                    if (Test-Path $testFile) {
+                        Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+
+            return $null
+        }
+        else {
+            # Local path - use PSDrive
+            $driveLetter = (Get-Item $Path -ErrorAction Stop).PSDrive.Name
+            $freeSpace = (Get-PSDrive $driveLetter -ErrorAction Stop).Free
+            return $freeSpace
+        }
+    }
+    catch {
+        return $null
     }
 }
 
@@ -262,52 +312,27 @@ function Backup-VM {
             return $false
         }
 
-        # Estimate required space
+        # Estimate required space and check temp drive
         $vmDiskSize = Get-VMDiskSize -VMName $VMName -Automated:$Automated
         if ($vmDiskSize -gt 0) {
             $vmDiskSizeGB = [math]::Round($vmDiskSize / 1GB, 2)
             Write-Log "VM '$VMName' estimated size: $vmDiskSizeGB GB" -Level Info -Automated:$Automated
-            
-            # Check if enough temp space
-            if ($MinFreeSpaceGB -gt 0) {
-                $tempDrive = (Get-Item $TempExportRoot).PSDrive.Name
-                $freeSpace = (Get-PSDrive $tempDrive).Free
-                
-                if ($freeSpace -lt ($vmDiskSize * 1.5)) {
-                    Write-Log "Insufficient temp space for VM '$VMName' (need ~$([math]::Round($vmDiskSize * 1.5 / 1GB, 2)) GB, have $([math]::Round($freeSpace / 1GB, 2)) GB)" -Level Error -Automated:$Automated
-                    $script:BackupStats.FailedVMs++
-                    $script:BackupStats.FailureMessages += "Insufficient space for $VMName"
-                    return $false
-                }
+
+            # Check if enough temp space for export (need ~1.5x VM size)
+            $tempDrive = (Get-Item $TempExportRoot).PSDrive.Name
+            $freeSpace = (Get-PSDrive $tempDrive).Free
+
+            if ($freeSpace -lt ($vmDiskSize * 1.5)) {
+                Write-Log "Insufficient temp space for VM '$VMName' (need ~$([math]::Round($vmDiskSize * 1.5 / 1GB, 2)) GB, have $([math]::Round($freeSpace / 1GB, 2)) GB)" -Level Error -Automated:$Automated
+                $script:BackupStats.FailedVMs++
+                $script:BackupStats.FailureMessages += "Insufficient temp space for $VMName"
+                return $false
             }
+
+            Write-Log "Temp drive ${tempDrive}: has $([math]::Round($freeSpace / 1GB, 2)) GB free" -Level Info -Automated:$Automated
         }
 
-        # Create checkpoint
-        Write-Log "Creating checkpoint for VM '$VMName'..." -Level Info -Automated:$Automated
-        $checkpointName = "Backup-$DateSuffix"
-        
-        try {
-            Checkpoint-VM -Name $VMName -SnapshotName $checkpointName -ErrorAction Stop
-        }
-        catch {
-            Write-Log "Failed to create checkpoint for VM '$VMName': $_" -Level Error -Automated:$Automated
-            $script:BackupStats.FailedVMs++
-            $script:BackupStats.FailureMessages += "Checkpoint failed for $VMName"
-            return $false
-        }
-
-        # Verify checkpoint
-        $checkpoint = Get-VMSnapshot -VMName $VMName -Name $checkpointName -ErrorAction SilentlyContinue
-        if (-not $checkpoint) {
-            Write-Log "Checkpoint verification failed for VM '$VMName'" -Level Error -Automated:$Automated
-            $script:BackupStats.FailedVMs++
-            $script:BackupStats.FailureMessages += "Checkpoint verification failed for $VMName"
-            return $false
-        }
-
-        Write-Log "Checkpoint created successfully: $checkpointName" -Level Success -Automated:$Automated
-
-        # Export VM to temp location
+        # Export VM to temp location (Export-VM creates its own checkpoint internally)
         $tempExportPath = Join-Path -Path $TempExportRoot -ChildPath "$VMName-$DateSuffix"
         Write-Log "Exporting VM '$VMName' to temp location: $tempExportPath" -Level Info -Automated:$Automated
         
@@ -329,14 +354,42 @@ function Backup-VM {
 
         Write-Log "Export completed successfully" -Level Success -Automated:$Automated
 
+        # Get actual export size for destination space check
+        $exportSize = (Get-ChildItem -Path $tempExportPath -Recurse -File | Measure-Object -Property Length -Sum).Sum
+        if (-not $exportSize) { $exportSize = 0 }
+        $exportSizeGB = [math]::Round($exportSize / 1GB, 2)
+        Write-Log "Export size for VM '$VMName': $exportSizeGB GB" -Level Info -Automated:$Automated
+
+        # Check destination space before copying
+        $destFreeSpace = Get-PathFreeSpace -Path $BackupFolder
+        if ($null -ne $destFreeSpace) {
+            $requiredSpace = $exportSize * 1.1  # 10% buffer
+            if ($destFreeSpace -lt $requiredSpace) {
+                Write-Log "Insufficient space on destination for VM '$VMName' (need ~$([math]::Round($requiredSpace / 1GB, 2)) GB, have $([math]::Round($destFreeSpace / 1GB, 2)) GB)" -Level Error -Automated:$Automated
+
+                # Cleanup temp export
+                if (Test-Path $tempExportPath) {
+                    Remove-Item -Path $tempExportPath -Recurse -Force -ErrorAction SilentlyContinue
+                }
+
+                $script:BackupStats.FailedVMs++
+                $script:BackupStats.FailureMessages += "Insufficient destination space for $VMName"
+                return $false
+            }
+            Write-Log "Destination has $([math]::Round($destFreeSpace / 1GB, 2)) GB free space" -Level Info -Automated:$Automated
+        }
+        else {
+            Write-Log "Warning: Could not determine free space on destination, proceeding with copy" -Level Warning -Automated:$Automated
+        }
+
         # Copy to NAS
         Write-Log "Copying VM '$VMName' export to backup location: $vmBackupPath" -Level Info -Automated:$Automated
-        
+
         try {
             if (-not (Test-Path $vmBackupPath)) {
                 New-Item -Path $vmBackupPath -ItemType Directory -Force | Out-Null
             }
-            
+
             Copy-Item -Path "$tempExportPath\*" -Destination $vmBackupPath -Recurse -Force -ErrorAction Stop
         }
         catch {
@@ -382,24 +435,28 @@ function Backup-VM {
 function Remove-OldCheckpoints {
     param(
         [array]$VMs,
+        [int]$RetentionCount = 2,
         [switch]$Automated
     )
 
-    Write-Log "Starting checkpoint cleanup for all VMs..." -Level Info -Automated:$Automated
-    
+    Write-Log "Starting checkpoint cleanup for all VMs (keeping $RetentionCount most recent)..." -Level Info -Automated:$Automated
+
     $totalCheckpoints = 0
-    
+
     foreach ($vm in $VMs) {
         $vmName = $vm.Name
-        
-        try {
-            $checkpoints = Get-VMSnapshot -VMName $vmName -ErrorAction SilentlyContinue | 
-                Where-Object { $_.Name -like "Backup-*" }
 
-            if ($checkpoints) {
-                foreach ($checkpoint in $checkpoints) {
+        try {
+            $checkpoints = Get-VMSnapshot -VMName $vmName -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -like "Backup-*" } |
+                Sort-Object CreationTime -Descending
+
+            if ($checkpoints -and $checkpoints.Count -gt $RetentionCount) {
+                $checkpointsToRemove = $checkpoints | Select-Object -Skip $RetentionCount
+
+                foreach ($checkpoint in $checkpointsToRemove) {
                     Write-Log "Removing checkpoint '$($checkpoint.Name)' from VM '$vmName'..." -Level Info -Automated:$Automated
-                    
+
                     try {
                         Remove-VMSnapshot -VMName $vmName -Name $checkpoint.Name -Confirm:$false -ErrorAction Stop
                         $totalCheckpoints++
@@ -414,7 +471,7 @@ function Remove-OldCheckpoints {
             Write-Log "Warning: Error accessing checkpoints for VM '$vmName': $_" -Level Warning -Automated:$Automated
         }
     }
-    
+
     Write-Log "Checkpoint cleanup completed. Removed $totalCheckpoints checkpoint(s)" -Level Success -Automated:$Automated
 }
 
@@ -585,11 +642,13 @@ function Start-BusinessLogic {
 
 if ($Automated) {
     if (Get-Command Invoke-ScheduledExecution -ErrorAction SilentlyContinue) {
-        Invoke-ScheduledExecution `
-            -Config $Config `
-            -Automated:$Automated `
-            -CurrentDateTimeUtc $CurrentDateTimeUtc `
-            -ScriptBlock { Start-BusinessLogic -Automated:$Automated }
+        $params = @{
+            Config = $Config
+            Automated = $Automated
+            CurrentDateTimeUtc = $CurrentDateTimeUtc
+            ScriptBlock = { Start-BusinessLogic -Automated:$Automated }
+        }
+        Invoke-ScheduledExecution @params
     }
     else {
         Write-Log "Invoke-ScheduledExecution not available. Execution aborted." -Level Error -Automated:$Automated

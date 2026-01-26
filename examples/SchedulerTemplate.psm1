@@ -5,18 +5,19 @@
     Reusable PowerShell module for scheduled script execution with lock files,
     interval control, and credential management.
 .VERSION
-    1.0.0
+    1.0.1
 .DATE
-    2026-01-24
+    2026-01-26
 .NOTES
     - Provides Write-Log function with timestamp and level support
     - Provides Get-CredentialFromEnvVar for secure credential retrieval
+    - Provides Test-UNCPath for UNC path validation
     - Provides Invoke-ScheduledExecution for scheduled task management
 #>
 
 # Module Version (exported for external scripts to check version)
-$script:ModuleVersion = "1.0.0"
-$script:ModuleDate = "2026-01-24"
+$script:ModuleVersion = "1.0.1"
+$script:ModuleDate = "2026-01-26"
 
 # Module load confirmation
 Write-Verbose "SchedulerTemplate.psm1 v$ModuleVersion loaded ($ModuleDate)"
@@ -87,6 +88,18 @@ function Get-CredentialFromEnvVar {
     catch {
         Write-Log "Error retrieving credentials from '$EnvVarName': $_" -Level Error -Automated:$Automated
         return $null
+    }
+}
+
+function Test-UNCPath {
+    param([string]$Path)
+
+    try {
+        $uri = [System.Uri]$Path
+        return $uri.IsUnc
+    }
+    catch {
+        return $false
     }
 }
 

@@ -12,9 +12,9 @@ param (
 .DESCRIPTION
     Production-ready file synchronization solution with scheduling and secure credential management.
 .VERSION
-    1.0.0
+    1.0.1
 .DATE
-    2026-01-24
+    2026-01-26
 .NOTES
     - Requires FreeFileSync installed
     - Requires SchedulerTemplate.psm1 module
@@ -22,8 +22,8 @@ param (
 #>
 
 # Script Version
-$ScriptVersion = "1.0.0"
-$ScriptDate = "2026-01-24"
+$ScriptVersion = "1.0.1"
+$ScriptDate = "2026-01-26"
 
 try {
     Import-Module "$PSScriptRoot\..\SchedulerTemplate.psm1" -Force -ErrorAction Stop
@@ -135,6 +135,12 @@ function Connect-NasShare {
         return $true
     }
 
+    # Validate UNC path format
+    if (-not (Test-UNCPath -Path $SharePath)) {
+        Write-Log "Invalid UNC path format: $SharePath (expected \\server\share)" -Level Error -Automated:$Automated
+        return $false
+    }
+
     Write-Log "Authenticating to NAS share: $SharePath" -Level Info -Automated:$Automated
 
     # Validate credential environment variable name is configured
@@ -211,14 +217,14 @@ function Start-FreeFileSyncProcess {
     try {
         # Use ProcessStartInfo to ensure that no window is shown
         $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName               = $FreeFileSyncExe
-        $psi.Arguments              = "`"$FfsBatchFile`""
-        $psi.WorkingDirectory       = [System.IO.Path]::GetDirectoryName($FreeFileSyncExe)
-        $psi.UseShellExecute        = $false
-        $psi.CreateNoWindow         = $true
-        $psi.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        $psi.FileName = $FreeFileSyncExe
+        $psi.Arguments  = "`"$FfsBatchFile`""
+        $psi.WorkingDirectory = [System.IO.Path]::GetDirectoryName($FreeFileSyncExe)
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
         $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError  = $true
+        $psi.RedirectStandardError = $true
 
         $proc = [System.Diagnostics.Process]::Start($psi)
         $global:FFS_Process = $proc
@@ -356,11 +362,13 @@ function Start-BusinessLogic {
 
 if ($Automated) {
     if (Get-Command Invoke-ScheduledExecution -ErrorAction SilentlyContinue) {
-        Invoke-ScheduledExecution `
-            -Config $Config `
-            -Automated:$Automated `
-            -CurrentDateTimeUtc $CurrentDateTimeUtc `
-            -ScriptBlock { Start-BusinessLogic -Automated:$Automated }
+        $params = @{
+            Config = $Config
+            Automated = $Automated
+            CurrentDateTimeUtc = $CurrentDateTimeUtc
+            ScriptBlock = { Start-BusinessLogic -Automated:$Automated }
+        }
+        Invoke-ScheduledExecution @params
     }
     else {
         Write-Log "Invoke-ScheduledExecution not available. Execution aborted." -Level Error -Automated:$Automated

@@ -1,7 +1,7 @@
 # Hyper-V Backup Script
 
-**Version:** 1.0.0
-**Last Updated:** 2026-01-24
+**Version:** 1.0.1
+**Last Updated:** 2026-01-26
 
 ## Overview
 
@@ -9,12 +9,12 @@ Production-ready automated backup solution for Hyper-V virtual machines with sch
 
 ## Features
 
-- ✅ **Automated VM Backup** - Exports all VMs on the host using Hyper-V checkpoints
+- ✅ **Automated VM Backup** - Exports all VMs on the host (Export-VM handles checkpoints internally)
 - ✅ **Flexible Scheduling** - Schedule backups by month, weekday, and time with interval control
 - ✅ **Remote Storage Support** - Backup to UNC shares with secure credential management
 - ✅ **Retention Management** - Automatically cleanup old backups based on retention count
-- ✅ **Checkpoint Management** - Automatic cleanup of backup checkpoints
-- ✅ **Space Validation** - Pre-flight checks for available disk space
+- ✅ **Checkpoint Management** - Automatic cleanup of backup checkpoints (keeps last 2 for rollback)
+- ✅ **Space Validation** - Dynamic space checks for temp (per VM) and destination before copy
 - ✅ **VM Exclusion** - Exclude specific VMs from backup
 - ✅ **Detailed Logging** - Comprehensive logging with timestamps and severity levels
 - ✅ **Lock Files** - Prevents concurrent execution
@@ -65,7 +65,6 @@ HyperV-Backup/
      "credentialEnvVar": "YOUR_ENV_VAR_NAME",
      "tempExportRoot": "D:\\Temp\\HyperVExport",
      "retentionCount": 3,
-     "minFreeSpaceGB": 100,
      "excludeVMs": ["vm-to-exclude"]
    }
    ```
@@ -109,9 +108,8 @@ HyperV-Backup/
 |----------|------|----------|-------------|
 | `backupRoot` | string | Yes | UNC or local path for backups. Hostname is appended automatically. |
 | `credentialEnvVar` | string | No* | Name of Machine-level environment variable with credentials (*Required for UNC paths) |
-| `tempExportRoot` | string | Yes | Local directory for temporary VM exports |
+| `tempExportRoot` | string | Yes | Local directory for temporary VM exports. Space checked dynamically per VM (1.5x VM size). |
 | `retentionCount` | number | Yes | Number of backup generations to keep (1-365) |
-| `minFreeSpaceGB` | number | No | Minimum required free space in GB (0 = disable check) |
 | `excludeVMs` | array | No | VM names to exclude from backup |
 
 ### Version Tracking
@@ -177,13 +175,14 @@ When `-Automated` is specified:
    - Retrieve all VMs on the host
    - Filter excluded VMs
    - For each VM:
-     - Create checkpoint with timestamp
-     - Export VM to temp location
+     - Check temp space (requires 1.5x VM size)
+     - Export VM to temp location (Export-VM handles checkpoints internally)
+     - Check destination space before copy
      - Copy to final backup location
      - Cleanup temp export
 
 4. **Cleanup**
-   - Remove all backup checkpoints
+   - Remove old backup checkpoints (keeps last 2 for rollback)
    - Delete old backup folders beyond retention count
 
 5. **Summary**
@@ -265,12 +264,13 @@ Error: Failed to connect to \\server\share
 
 **3. Insufficient Space**
 ```
-Error: Insufficient free space on drive D:
+Error: Insufficient temp space for VM 'xxx' (need ~150 GB, have 100 GB)
+Error: Insufficient space on destination for VM 'xxx'
 ```
 **Solution:**
-- Free up space on temp drive
-- Reduce `minFreeSpaceGB` setting (not recommended)
-- Use different temp location
+- Free up space on temp drive or destination
+- Use different temp location with more space
+- Check destination share quota/capacity
 
 **4. Lock File Exists**
 ```
@@ -281,14 +281,15 @@ Guard: Lock file exists. Skipping.
 - Manually delete `.lock` file if stuck
 - Check for hung PowerShell processes
 
-**5. Checkpoint Creation Failed**
+**5. Export Failed**
 ```
-Error: Failed to create checkpoint for VM
+Error: Failed to export VM 'xxx'
 ```
 **Solution:**
 - Verify VM is in a valid state
 - Check Hyper-V event logs
-- Ensure sufficient disk space for checkpoints
+- Ensure sufficient disk space for export
+- Verify no other export/checkpoint operations in progress
 
 ### Debug Mode
 
@@ -329,11 +330,21 @@ Run with verbose output:
 ### 1.0.0 (2026-01-24)
 - Initial production release
 - Automated backup with scheduling
-- Checkpoint-based export
+- Export-VM based backup (handles checkpoints internally)
 - Retention management
 - UNC share support with credential management
 - Lock file and interval control
 - Comprehensive error handling and logging
+
+### 1.0.1 (2026-01-26)
+- Improved disk space checking: Dynamic per-VM validation (1.5x VM size) for temp and destination
+- Removed static `minFreeSpaceGB` setting in favor of smart per-VM space checks
+- Enhanced checkpoint retention: Keep last 2 backup checkpoints for rollback capability
+- Removed manual checkpoint creation (Export-VM handles checkpoints internally)
+- Improved UNC path validation
+- Better error messages for space-related failures
+- Performance improvement: Skip unnecessary space checks
+- Refactored parameter splatting for Invoke-ScheduledExecution
 
 ## Support
 

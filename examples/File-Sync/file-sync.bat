@@ -3,8 +3,8 @@ setlocal EnableDelayedExpansion
 
 REM ============================================================================
 REM File Sync Launcher
-REM VERSION: 1.0.0
-REM DATE: 2026-01-24
+REM VERSION: 1.0.1
+REM DATE: 2026-01-26
 REM DESCRIPTION: Batch file launcher for file-sync.ps1 with admin check
 REM ============================================================================
 

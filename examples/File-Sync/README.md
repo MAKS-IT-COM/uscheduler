@@ -1,7 +1,7 @@
 # File Sync Script
 
-**Version:** 1.0.0
-**Last Updated:** 2026-01-24
+**Version:** 1.0.1
+**Last Updated:** 2026-01-26
 
 ## Overview
 
@@ -360,6 +360,11 @@ Run with verbose output:
 - Comprehensive error handling and logging
 - Dynamic batch file path updates
 - Prerequisite validation
+
+### 1.0.1 (2026-01-26)
+- Improve UNC path validation for network share connections
+- Code formatting improvements for better readability
+- Refactored parameter splatting for Invoke-ScheduledExecution
 
 ## Support
 

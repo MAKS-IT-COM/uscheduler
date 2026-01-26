@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft-07/schema",
   "title": "Hyper-V Backup Script Settings",
   "description": "Configuration file for hyper-v-backup.ps1 script",
-  "version": "1.0.0",
-  "lastModified": "2026-01-24",
+  "version": "1.0.1",
+  "lastModified": "2026-01-26",
   "schedule": {
     "runMonth": [],
     "runWeekday": ["Monday"],
@@ -14,7 +14,6 @@
   "credentialEnvVar": "nassrv0001",
   "tempExportRoot": "D:\\Temp\\HyperVExport",
   "retentionCount": 3,
-  "minFreeSpaceGB": 100,
   "excludeVMs": ["nassrv0002"],
   "_comments": {
     "version": "Configuration schema version",
@@ -27,9 +26,8 @@
     },
     "backupRoot": "UNC path or local path to backup root directory. Hostname will be appended automatically.",
     "credentialEnvVar": "Name of Machine-level environment variable containing Base64-encoded 'username:password'",
-    "tempExportRoot": "Local directory for temporary VM exports. Must have sufficient free space.",
+    "tempExportRoot": "Local directory for temporary VM exports. Space is checked dynamically per VM (1.5x VM size).",
     "retentionCount": "Number of backup generations to keep (1-365). Older backups are automatically deleted.",
-    "minFreeSpaceGB": "Minimum required free space in GB before starting backup. Set to 0 to disable check.",
     "excludeVMs": "Array of VM names to exclude from backup process"
   }
 }

@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft-07/schema",
   "title": "File Sync Script Settings",
   "description": "Configuration file for file-sync.ps1 script using FreeFileSync",
-  "version": "1.0.0",
-  "lastModified": "2026-01-24",
+  "version": "1.0.1",
+  "lastModified": "2026-01-26",
   "schedule": {
     "runMonth": [],
     "runWeekday": ["Monday"],
