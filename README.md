@@ -30,9 +30,10 @@ Designed for system administrators — and also for those who *feel like* system
   - [License](#license)
 
 ## Scripts Examples
-- [Scheduler Template Module](./examples/SchedulerTemplate.psm1)
 - [Hyper-V Backup](./examples/HyperV-Backup/README.md) - Production-ready Hyper-V VM backup solution with scheduling and retention management
+- [Native-Sync](./examples/Native-Sync/README.md) - Production-ready file synchronization solution using pure PowerShell with no external dependencies
 - [File-Sync](./examples/File-Sync/README.md) - [FreeFileSync](https://freefilesync.org/) batch job execution
+- [Scheduler Template Module](./examples/SchedulerTemplate.psm1)
 
 ---
 

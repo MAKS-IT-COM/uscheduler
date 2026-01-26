@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "Native Sync Script Settings",
+  "description": "Configuration file for native-sync.ps1 script (pure PowerShell file synchronization)",
+  "version": "1.0.0",
+  "lastModified": "2026-01-26",
+  "schedule": {
+    "runMonth": [],
+    "runWeekday": ["Monday"],
+    "runTime": ["00:00"],
+    "minIntervalMinutes": 10
+  },
+  "syncMode": "Mirror",
+  "compareMethod": "TimeAndSize",
+  "deletionPolicy": "RecycleBin",
+  "versioningFolder": "",
+  "folderPairs": [
+    {
+      "left": "E:\\Users\\maksym\\source",
+      "right": "\\\\nassrv0001.corp.maks-it.com\\data-1\\Users\\maksym\\source"
+    }
+  ],
+  "filters": {
+    "include": ["*"],
+    "exclude": [
+      "\\System Volume Information\\",
+      "\\$Recycle.Bin\\",
+      "\\RECYCLE?\\",
+      "\\Recovery\\",
+      "*\\thumbs.db"
+    ]
+  },
+  "options": {
+    "excludeSymlinks": true,
+    "ignoreTimeShift": false,
+    "showProgress": true,
+    "dryRun": false
+  },
+  "nasRootShare": "\\\\nassrv0001.corp.maks-it.com\\data-1",
+  "credentialEnvVar": "nassrv0001",
+  "_comments": {
+    "version": "Configuration schema version",
+    "lastModified": "Last modification date (YYYY-MM-DD)",
+    "schedule": {
+      "runMonth": "Array of month names (e.g. 'January', 'June', 'December') to run sync. Empty array = every month.",
+      "runWeekday": "Array of weekday names (e.g. 'Monday', 'Friday') to run sync. Empty array = every day.",
+      "runTime": "Array of UTC times in HH:mm format when sync should run.",
+      "minIntervalMinutes": "Minimum minutes between sync runs to prevent duplicate executions."
+    },
+    "syncMode": "Synchronization mode: 'Mirror' (make right identical to left), 'Update' (copy new/updated to right only), 'TwoWay' (propagate changes both ways)",
+    "compareMethod": "File comparison method: 'TimeAndSize' (compare by modification time and file size)",
+    "deletionPolicy": "How to handle deleted files: 'RecycleBin' (move to recycle bin), 'Permanent' (delete permanently), 'Versioning' (move to versioning folder)",
+    "versioningFolder": "Path for versioning folder when deletionPolicy is 'Versioning'. Leave empty if not using versioning.",
+    "folderPairs": "Array of folder pairs to synchronize. Each pair has 'left' (source) and 'right' (destination) paths.",
+    "filters": {
+      "include": "Array of patterns to include. Use '*' to include all files.",
+      "exclude": "Array of patterns to exclude. Supports wildcards and path patterns."
+    },
+    "options": {
+      "excludeSymlinks": "Skip symbolic links during synchronization",
+      "ignoreTimeShift": "Ignore 1-hour time differences (DST changes)",
+      "showProgress": "Display file-by-file progress during sync",
+      "dryRun": "Simulate sync without making changes (can also use -DryRun parameter)"
+    },
+    "nasRootShare": "UNC path to NAS root share for authentication. Only used for connecting to the share.",
+    "credentialEnvVar": "Name of Machine-level environment variable containing Base64-encoded 'username:password' for NAS authentication"
+  }
+}
