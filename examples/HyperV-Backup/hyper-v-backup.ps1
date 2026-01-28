@@ -5,7 +5,6 @@ param (
 )
 
 #Requires -RunAsAdministrator
-#Requires -Modules Hyper-V
 
 <#
 .SYNOPSIS
@@ -13,18 +12,18 @@ param (
 .DESCRIPTION
     Production-ready Hyper-V backup solution with scheduling, checkpoints, and retention management.
 .VERSION
-    1.0.1
+    1.0.2
 .DATE
-    2026-01-26
+    2026-01-28
 .NOTES
     - Requires Administrator privileges
-    - Requires Hyper-V PowerShell module
+    - Requires Hyper-V PowerShell module (auto-installed if missing)
     - Requires SchedulerTemplate.psm1 module
 #>
 
 # Script Version
-$ScriptVersion = "1.0.1"
-$ScriptDate = "2026-01-26"
+$ScriptVersion = "1.0.2"
+$ScriptDate = "2026-01-28"
 
 try {
     Import-Module "$PSScriptRoot\..\SchedulerTemplate.psm1" -Force -ErrorAction Stop
@@ -68,6 +67,10 @@ $CredentialEnvVar = $settings.credentialEnvVar
 $TempExportRoot = $settings.tempExportRoot
 $RetentionCount = $settings.retentionCount
 $BlacklistedVMs = $settings.excludeVMs
+$Options = $settings.options
+
+# Get DryRun from settings
+$DryRun = $Options.dryRun
 
 # Schedule Configuration
 $Config = @{
@@ -106,9 +109,47 @@ $script:BackupStats = @{
 
 # Helper Functions =========================================================
 
+function Test-HyperVModule {
+    param([switch]$Automated)
+
+    Write-Log "Checking Hyper-V PowerShell module..." -Level Info -Automated:$Automated
+
+    if (-not (Get-Module -ListAvailable -Name Hyper-V)) {
+        Write-Log "Hyper-V PowerShell module not found. Installing..." -Level Warning -Automated:$Automated
+
+        try {
+            # Install Hyper-V PowerShell module (Windows Feature)
+            $result = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-PowerShell -All -NoRestart -ErrorAction Stop
+
+            if ($result.RestartNeeded) {
+                Write-Log "Hyper-V PowerShell module installed but requires system restart" -Level Warning -Automated:$Automated
+                Write-Log "Please restart the system and run the script again" -Level Info -Automated:$Automated
+                return $false
+            }
+
+            Write-Log "Hyper-V PowerShell module installed successfully" -Level Success -Automated:$Automated
+        }
+        catch {
+            Write-Log "Failed to install Hyper-V PowerShell module: $_" -Level Error -Automated:$Automated
+            Write-Log "Please install manually: Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-PowerShell -All" -Level Info -Automated:$Automated
+            return $false
+        }
+    }
+
+    try {
+        Import-Module Hyper-V -ErrorAction Stop
+        Write-Log "Hyper-V PowerShell module loaded" -Level Success -Automated:$Automated
+        return $true
+    }
+    catch {
+        Write-Log "Failed to import Hyper-V module: $_" -Level Error -Automated:$Automated
+        return $false
+    }
+}
+
 function Test-Prerequisites {
     param([switch]$Automated)
-    
+
     Write-Log "Checking prerequisites..." -Level Info -Automated:$Automated
 
     # Check if running as Administrator
@@ -119,8 +160,7 @@ function Test-Prerequisites {
     }
 
     # Check Hyper-V module
-    if (-not (Get-Module -ListAvailable -Name Hyper-V)) {
-        Write-Log "Hyper-V PowerShell module is not installed!" -Level Error -Automated:$Automated
+    if (-not (Test-HyperVModule -Automated:$Automated)) {
         return $false
     }
 
@@ -332,21 +372,30 @@ function Backup-VM {
             Write-Log "Temp drive ${tempDrive}: has $([math]::Round($freeSpace / 1GB, 2)) GB free" -Level Info -Automated:$Automated
         }
 
+        # Dry run mode - skip actual backup operations
+        if ($DryRun) {
+            Write-Log "DRY RUN: Would export VM '$VMName' to temp location" -Level Warning -Automated:$Automated
+            Write-Log "DRY RUN: Would copy export to backup location: $vmBackupPath" -Level Warning -Automated:$Automated
+            Write-Log "=== DRY RUN: Backup simulated for VM: $VMName ===" -Level Warning -Automated:$Automated
+            $script:BackupStats.SkippedVMs++
+            return $true
+        }
+
         # Export VM to temp location (Export-VM creates its own checkpoint internally)
         $tempExportPath = Join-Path -Path $TempExportRoot -ChildPath "$VMName-$DateSuffix"
         Write-Log "Exporting VM '$VMName' to temp location: $tempExportPath" -Level Info -Automated:$Automated
-        
+
         try {
             Export-VM -Name $VMName -Path $tempExportPath -ErrorAction Stop
         }
         catch {
             Write-Log "Failed to export VM '$VMName': $_" -Level Error -Automated:$Automated
-            
+
             # Cleanup temp if export failed
             if (Test-Path $tempExportPath) {
                 Remove-Item -Path $tempExportPath -Recurse -Force -ErrorAction SilentlyContinue
             }
-            
+
             $script:BackupStats.FailedVMs++
             $script:BackupStats.FailureMessages += "Export failed for $VMName"
             return $false
@@ -394,12 +443,12 @@ function Backup-VM {
         }
         catch {
             Write-Log "Failed to copy VM '$VMName' to backup location: $_" -Level Error -Automated:$Automated
-            
+
             # Cleanup partial backup
             if (Test-Path $vmBackupPath) {
                 Remove-Item -Path $vmBackupPath -Recurse -Force -ErrorAction SilentlyContinue
             }
-            
+
             $script:BackupStats.FailedVMs++
             $script:BackupStats.FailureMessages += "Copy to NAS failed for $VMName"
             return $false
@@ -409,7 +458,7 @@ function Backup-VM {
 
         # Cleanup temp export
         Write-Log "Cleaning up temp export for VM '$VMName'..." -Level Info -Automated:$Automated
-        
+
         try {
             if (Test-Path $tempExportPath) {
                 Remove-Item -Path $tempExportPath -Recurse -Force -ErrorAction Stop
@@ -558,6 +607,9 @@ function Start-BusinessLogic {
     Write-Log "Hyper-V Backup Process Started" -Level Info -Automated:$Automated
     Write-Log "Script Version: $ScriptVersion ($ScriptDate)" -Level Info -Automated:$Automated
     Write-Log "Host: $Hostname" -Level Info -Automated:$Automated
+    if ($DryRun) {
+        Write-Log "DRY RUN MODE - No changes will be made" -Level Warning -Automated:$Automated
+    }
     Write-Log "========================================" -Level Info -Automated:$Automated
 
     # Check prerequisites
@@ -606,13 +658,18 @@ function Start-BusinessLogic {
     $dateSuffix = Get-Date -Format "yyyyMMddHHmmss"
     $backupFolder = Join-Path -Path $BackupPath -ChildPath $dateSuffix
 
-    try {
-        New-Item -Path $backupFolder -ItemType Directory -Force -ErrorAction Stop | Out-Null
-        Write-Log "Created backup folder: $backupFolder" -Level Success -Automated:$Automated
+    if ($DryRun) {
+        Write-Log "DRY RUN: Would create backup folder: $backupFolder" -Level Warning -Automated:$Automated
     }
-    catch {
-        Write-Log "Failed to create backup folder '$backupFolder': $_" -Level Error -Automated:$Automated
-        exit 1
+    else {
+        try {
+            New-Item -Path $backupFolder -ItemType Directory -Force -ErrorAction Stop | Out-Null
+            Write-Log "Created backup folder: $backupFolder" -Level Success -Automated:$Automated
+        }
+        catch {
+            Write-Log "Failed to create backup folder '$backupFolder': $_" -Level Error -Automated:$Automated
+            exit 1
+        }
     }
 
     # Process each VM
@@ -628,11 +685,21 @@ function Start-BusinessLogic {
         Backup-VM -VMName $vmName -BackupFolder $backupFolder -DateSuffix $dateSuffix -Automated:$Automated
     }
 
-    # Cleanup old checkpoints
-    Remove-OldCheckpoints -VMs $vms -Automated:$Automated
+    # Cleanup old checkpoints (skip in dry run mode)
+    if ($DryRun) {
+        Write-Log "DRY RUN: Skipping checkpoint cleanup" -Level Warning -Automated:$Automated
+    }
+    else {
+        Remove-OldCheckpoints -VMs $vms -Automated:$Automated
+    }
 
-    # Cleanup old backups
-    Remove-OldBackups -BackupPath $BackupPath -RetentionCount $RetentionCount -Automated:$Automated
+    # Cleanup old backups (skip in dry run mode)
+    if ($DryRun) {
+        Write-Log "DRY RUN: Skipping old backup cleanup" -Level Warning -Automated:$Automated
+    }
+    else {
+        Remove-OldBackups -BackupPath $BackupPath -RetentionCount $RetentionCount -Automated:$Automated
+    }
 
     # Print summary
     Write-BackupSummary -Automated:$Automated

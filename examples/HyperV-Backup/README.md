@@ -1,7 +1,7 @@
 # Hyper-V Backup Script
 
-**Version:** 1.0.1
-**Last Updated:** 2026-01-26
+**Version:** 1.0.2
+**Last Updated:** 2026-01-28
 
 ## Overview
 
@@ -16,6 +16,7 @@ Production-ready automated backup solution for Hyper-V virtual machines with sch
 - ✅ **Checkpoint Management** - Automatic cleanup of backup checkpoints (keeps last 2 for rollback)
 - ✅ **Space Validation** - Dynamic space checks for temp (per VM) and destination before copy
 - ✅ **VM Exclusion** - Exclude specific VMs from backup
+- ✅ **Dry Run Mode** - Test backup detection without actual export/copy operations
 - ✅ **Detailed Logging** - Comprehensive logging with timestamps and severity levels
 - ✅ **Lock Files** - Prevents concurrent execution
 - ✅ **Error Handling** - Proper exit codes and error reporting
@@ -26,7 +27,7 @@ Production-ready automated backup solution for Hyper-V virtual machines with sch
 - Windows Server with Hyper-V role installed
 - PowerShell 5.1 or later
 - Administrator privileges
-- Hyper-V PowerShell module
+- Hyper-V PowerShell module (auto-installed if missing)
 
 ### Dependencies
 - `SchedulerTemplate.psm1` module (located in parent directory)
@@ -65,7 +66,10 @@ HyperV-Backup/
      "credentialEnvVar": "YOUR_ENV_VAR_NAME",
      "tempExportRoot": "D:\\Temp\\HyperVExport",
      "retentionCount": 3,
-     "excludeVMs": ["vm-to-exclude"]
+     "excludeVMs": ["vm-to-exclude"],
+     "options": {
+       "dryRun": false
+     }
    }
    ```
 
@@ -89,6 +93,8 @@ HyperV-Backup/
    .\hyper-v-backup.bat
    # or
    .\hyper-v-backup.ps1
+
+   # Test with dry run first (set dryRun: true in scriptsettings.json)
    ```
 
 ## Configuration Reference
@@ -111,6 +117,12 @@ HyperV-Backup/
 | `tempExportRoot` | string | Yes | Local directory for temporary VM exports. Space checked dynamically per VM (1.5x VM size). |
 | `retentionCount` | number | Yes | Number of backup generations to keep (1-365) |
 | `excludeVMs` | array | No | VM names to exclude from backup |
+
+### Options
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `dryRun` | bool | `false` | Simulate backup without exporting or copying VMs |
 
 ### Version Tracking
 
@@ -345,6 +357,14 @@ Run with verbose output:
 - Better error messages for space-related failures
 - Performance improvement: Skip unnecessary space checks
 - Refactored parameter splatting for Invoke-ScheduledExecution
+
+### 1.0.2 (2026-01-28)
+- Added auto-installation of Hyper-V PowerShell module if missing
+- Removed `#Requires -Modules Hyper-V` directive in favor of runtime installation
+- Module installation uses `Enable-WindowsOptionalFeature` for the Microsoft-Hyper-V-Management-PowerShell feature
+- Handles restart requirement notification if Windows feature installation requires reboot
+- Added dry run mode (`options.dryRun`) to simulate backup without actual export/copy operations
+- Restructured settings to use `options` object for consistency with other scripts
 
 ## Support
 

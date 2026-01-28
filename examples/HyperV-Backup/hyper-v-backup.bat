@@ -3,8 +3,8 @@ setlocal EnableDelayedExpansion
 
 REM ============================================================================
 REM Hyper-V Backup Launcher
-REM VERSION: 1.0.1
-REM DATE: 2026-01-26
+REM VERSION: 1.0.2
+REM DATE: 2026-01-28
 REM DESCRIPTION: Batch file launcher for hyper-v-backup.ps1 with admin check
 REM ============================================================================
 
