@@ -5,19 +5,20 @@
     Reusable PowerShell module for scheduled script execution with lock files,
     interval control, and credential management.
 .VERSION
-    1.0.1
+    1.0.2
 .DATE
-    2026-01-26
+    2026-01-28
 .NOTES
     - Provides Write-Log function with timestamp and level support
     - Provides Get-CredentialFromEnvVar for secure credential retrieval
     - Provides Test-UNCPath for UNC path validation
+    - Provides Send-EmailNotification for SMTP email sending
     - Provides Invoke-ScheduledExecution for scheduled task management
 #>
 
 # Module Version (exported for external scripts to check version)
-$script:ModuleVersion = "1.0.1"
-$script:ModuleDate = "2026-01-26"
+$script:ModuleVersion = "1.0.2"
+$script:ModuleDate = "2026-01-28"
 
 # Module load confirmation
 Write-Verbose "SchedulerTemplate.psm1 v$ModuleVersion loaded ($ModuleDate)"
@@ -214,6 +215,69 @@ function Remove-LockGuard {
     if (Test-Path $LockFile) {
         Remove-Item $LockFile -Force
         Write-Log "Lock removed: $LockFile" -Automated:$Automated -Level Info
+    }
+}
+
+# ======================================================================
+# Email Notification
+# ======================================================================
+function Send-EmailNotification {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$EmailSettings,
+        [Parameter(Mandatory = $true)]
+        [string]$Subject,
+        [Parameter(Mandatory = $true)]
+        [string]$Body,
+        [switch]$Automated
+    )
+
+    # Validate required settings
+    $required = @('smtpServer', 'smtpPort', 'from', 'to')
+    foreach ($key in $required) {
+        if (-not $EmailSettings.$key) {
+            Write-Log "Email setting '$key' is required but missing" -Level Error -Automated:$Automated
+            return $false
+        }
+    }
+
+    try {
+        $mailParams = @{
+            SmtpServer = $EmailSettings.smtpServer
+            Port = $EmailSettings.smtpPort
+            From = $EmailSettings.from
+            To = $EmailSettings.to
+            Subject = $Subject
+            Body = $Body
+            BodyAsHtml = $false
+        }
+
+        # Add SSL if configured
+        if ($EmailSettings.useSSL) {
+            $mailParams['UseSsl'] = $true
+        }
+
+        # Add credentials if configured
+        if ($EmailSettings.credentialEnvVar) {
+            $creds = Get-CredentialFromEnvVar -EnvVarName $EmailSettings.credentialEnvVar -Automated:$Automated
+            if ($creds) {
+                $securePassword = ConvertTo-SecureString $creds.Password -AsPlainText -Force
+                $credential = New-Object System.Management.Automation.PSCredential($creds.Username, $securePassword)
+                $mailParams['Credential'] = $credential
+            }
+            else {
+                Write-Log "Failed to retrieve email credentials from '$($EmailSettings.credentialEnvVar)'" -Level Error -Automated:$Automated
+                return $false
+            }
+        }
+
+        Send-MailMessage @mailParams -ErrorAction Stop
+        Write-Log "Email sent successfully to $($EmailSettings.to -join ', ')" -Level Success -Automated:$Automated
+        return $true
+    }
+    catch {
+        Write-Log "Failed to send email: $_" -Level Error -Automated:$Automated
+        return $false
     }
 }
 

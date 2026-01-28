@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "Windows Update Script Settings",
+  "description": "Configuration file for windows-update.ps1 script (automated Windows Update management)",
+  "version": "1.0.0",
+  "lastModified": "2026-01-28",
+  "schedule": {
+    "runMonth": [],
+    "runWeekday": ["Wednesday"],
+    "runTime": ["02:00"],
+    "minIntervalMinutes": 60
+  },
+  "updateCategories": [
+    "Critical Updates",
+    "Security Updates",
+    "Definition Updates",
+    "Update Rollups"
+  ],
+  "exclusions": {
+    "kbNumbers": [],
+    "titlePatterns": [
+      "*Preview*",
+      "*Beta*"
+    ]
+  },
+  "preChecks": {
+    "minDiskSpaceGB": 10,
+    "checkPendingReboot": true
+  },
+  "options": {
+    "rebootBehavior": "manual",
+    "rebootDelayMinutes": 5,
+    "dryRun": false
+  },
+  "reporting": {
+    "generateReport": true,
+    "emailNotification": false,
+    "emailSettings": {
+      "smtpServer": "smtp.example.com",
+      "smtpPort": 587,
+      "from": "windows-update@example.com",
+      "to": ["admin@example.com"],
+      "useSSL": true,
+      "credentialEnvVar": ""
+    }
+  },
+  "_comments": {
+    "version": "Configuration schema version",
+    "lastModified": "Last modification date (YYYY-MM-DD)",
+    "schedule": {
+      "runMonth": "Array of month names (e.g. 'January', 'June') to run updates. Empty array = every month.",
+      "runWeekday": "Array of weekday names (e.g. 'Wednesday', 'Sunday') to run updates. Empty array = every day.",
+      "runTime": "Array of UTC times in HH:mm format when updates should run.",
+      "minIntervalMinutes": "Minimum minutes between update runs to prevent duplicate executions."
+    },
+    "updateCategories": "Array of update categories to install. Available: 'Critical Updates', 'Security Updates', 'Definition Updates', 'Update Rollups', 'Feature Packs', 'Service Packs', 'Tools', 'Drivers'",
+    "exclusions": {
+      "kbNumbers": "Array of KB numbers to exclude (e.g. 'KB5034441')",
+      "titlePatterns": "Array of wildcard patterns to exclude by title (e.g. '*Preview*', '*Optional*')"
+    },
+    "preChecks": {
+      "minDiskSpaceGB": "Minimum free disk space in GB required before installing updates",
+      "checkPendingReboot": "Check if system has pending reboot from previous updates"
+    },
+    "options": {
+      "rebootBehavior": "Reboot behavior: 'never' (abort if reboot needed), 'manual' (continue, user reboots later), 'auto' (reboot automatically after delay)",
+      "rebootDelayMinutes": "Minutes to wait before auto-reboot when rebootBehavior is 'auto' (0 = immediate)",
+      "dryRun": "Simulate update installation without making changes"
+    },
+    "reporting": {
+      "generateReport": "Generate text report after update installation",
+      "emailNotification": "Send email notification after updates (requires emailSettings)",
+      "emailSettings": {
+        "smtpServer": "SMTP server hostname",
+        "smtpPort": "SMTP port (typically 587 for TLS, 465 for SSL, 25 for plain)",
+        "from": "Sender email address",
+        "to": "Array of recipient email addresses",
+        "useSSL": "Use SSL/TLS for connection",
+        "credentialEnvVar": "Machine-level environment variable containing Base64('username:password'). Empty for no auth."
+      }
+    }
+  }
+}

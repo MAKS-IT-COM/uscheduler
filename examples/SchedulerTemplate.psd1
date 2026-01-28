@@ -1,6 +1,6 @@
 @{
     RootModule = 'SchedulerTemplate.psm1'
-    ModuleVersion = '1.0.1'
+    ModuleVersion = '1.0.2'
     GUID = 'a3b2c1d0-e4f5-6a7b-8c9d-0e1f2a3b4c5d'
     Author = 'MaksIT'
     CompanyName = 'MaksIT'
@@ -20,6 +20,7 @@
         'Test-ScheduledExecution',
         'New-LockGuard',
         'Remove-LockGuard',
+        'Send-EmailNotification',
         'Invoke-ScheduledExecution'
     )
     CmdletsToExport = @()
@@ -27,13 +28,19 @@
     AliasesToExport = @()
     PrivateData = @{
         PSData = @{
-            Tags = @('Scheduler', 'Automation', 'Lock', 'Logging', 'Credentials')
+            Tags = @('Scheduler', 'Automation', 'Lock', 'Logging', 'Credentials', 'Email')
             LicenseUri = ''
             ProjectUri = 'https://github.com/MaksIT/uscheduler'
             ReleaseNotes = @'
+## 1.0.2 (2026-01-28)
+- Added Send-EmailNotification function for SMTP email sending
+- Supports SSL/TLS and credential-based authentication
+
 ## 1.0.1 (2026-01-26)
 - Improved UNC path validation (Test-UNCPath function)
 - Enhanced credential management
+
+## 1.0.0 (2026-01-24)
 - Comprehensive logging with timestamp support
 - Scheduled execution with lock files and interval control
 - Schedule validation (month, weekday, time)
