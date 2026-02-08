@@ -1,90 +1,126 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Collections.Concurrent;
+using MaksIT.UScheduler.Shared.Helpers;
+using MaksIT.UScheduler.Shared.Extensions;
 
 
 namespace MaksIT.UScheduler.Services;
 
-public sealed class ProcessService {
+/// <summary>
+/// Service responsible for managing and executing external processes.
+/// Tracks running processes and provides methods for starting, monitoring, and terminating them.
+/// </summary>
+public sealed class ProcessService : IProcessService {
 
-  private readonly ILogger<ProcessService> _logger;
+  private readonly ILogger _logger;
+  private readonly ILoggerFactory _loggerFactory;
   private readonly ConcurrentDictionary<int, Process> _runningProcesses = new();
 
-  public ProcessService(ILogger<ProcessService> logger) {
+  /// <summary>
+  /// Initializes a new instance of the <see cref="ProcessService"/> class.
+  /// </summary>
+  /// <param name="logger">The logger instance for this service.</param>
+  /// <param name="loggerFactory">The logger factory for creating process-specific loggers.</param>
+  public ProcessService(
+    ILogger<ProcessService> logger,
+    ILoggerFactory loggerFactory
+  ) {
     _logger = logger;
+    _loggerFactory = loggerFactory;
   }
 
-  public async Task RunProcess(string processPath, string[] args, CancellationToken stoppingToken) {
-    _logger.LogInformation($"Starting process {processPath} with arguments {string.Join(", ", args)}");
+  /// <summary>
+  /// Starts and monitors an external process asynchronously.
+  /// If the process exits with a non-zero code, it will be automatically restarted.
+  /// </summary>
+  /// <param name="processPath">The path to the executable to run.</param>
+  /// <param name="args">Optional command-line arguments to pass to the process.</param>
+  /// <param name="stoppingToken">Cancellation token to signal when the process should stop.</param>
+  /// <returns>A task representing the asynchronous operation.</returns>
+  public async Task RunProcessAsync(string processPath, string[]? args, CancellationToken stoppingToken) {
+    // Resolve relative paths against application base directory
+    var resolvedPath = PathHelper.ResolvePath(processPath);
+    var processLogger = _loggerFactory.CreateFolderLogger(resolvedPath);
+    var argsString = args != null ? string.Join(", ", args) : "";
+
+    processLogger.LogInformation($"Starting process {resolvedPath} with arguments {argsString}");
 
     Process? process = null;
 
     try {
-      if (GetRunningProcesses().Any(x => x.Value.StartInfo.FileName == processPath)) {
-        _logger.LogInformation($"Process {processPath} is already running");
+      if (GetRunningProcesses().Any(x => x.Value.StartInfo.FileName == resolvedPath)) {
+        processLogger.LogInformation($"Process {resolvedPath} is already running");
         return;
       }
 
       process = new Process();
 
       process.StartInfo = new ProcessStartInfo {
-        FileName = processPath,
-        WorkingDirectory = Path.GetDirectoryName(processPath),
+        FileName = resolvedPath,
+        WorkingDirectory = Path.GetDirectoryName(resolvedPath),
         UseShellExecute = false,
         RedirectStandardOutput = true,
         RedirectStandardError = true
       };
 
-      foreach (var arg in args)
-        process.StartInfo.ArgumentList.Add(arg);
+      if (args != null) {
+        foreach (var arg in args)
+          process.StartInfo.ArgumentList.Add(arg);
+      }
 
       process.Start();
       _runningProcesses.TryAdd(process.Id, process);
 
-      _logger.LogInformation($"Process {processPath} started with ID {process.Id}");
+      processLogger.LogInformation($"Process {resolvedPath} started with ID {process.Id}");
 
       await process.WaitForExitAsync();
 
       if (process.ExitCode != 0 && !stoppingToken.IsCancellationRequested) {
-        _logger.LogWarning($"Process {processPath} exited with code {process.ExitCode}");
-        await RunProcess(processPath, args, stoppingToken);
+        processLogger.LogWarning($"Process {resolvedPath} exited with code {process.ExitCode}, restarting...");
+        await RunProcessAsync(resolvedPath, args, stoppingToken);
       }
       else {
-        _logger.LogInformation($"Process {processPath} completed successfully");
+        processLogger.LogInformation($"Process {resolvedPath} completed successfully with exit code {process.ExitCode}");
       }
     }
     catch (OperationCanceledException) {
       // When the stopping token is canceled, for example, a call made from services.msc,
       // we shouldn't exit with a non-zero exit code. In other words, this is expected...
-      _logger.LogWarning($"Process {processPath} was canceled");
+      processLogger.LogInformation($"Process {resolvedPath} was canceled");
     }
     catch (Exception ex) {
-      _logger.LogError($"Error running process {processPath}: {ex.Message}");
+      processLogger.LogError($"Error running process {resolvedPath}: {ex.Message}");
     }
     finally {
       if (process != null && _runningProcesses.ContainsKey(process.Id)) {
         TerminateProcessById(process.Id);
-
-        _logger.LogInformation($"Process {processPath} with ID {process.Id} removed from running processes");
+        processLogger.LogInformation($"Process {resolvedPath} with ID {process.Id} removed from running processes");
       }
     }
   }
 
+  /// <summary>
+  /// Gets the dictionary of currently running processes.
+  /// </summary>
+  /// <returns>A concurrent dictionary mapping process IDs to their Process objects.</returns>
   public ConcurrentDictionary<int, Process> GetRunningProcesses() {
-    _logger.LogInformation($"Retrieving running processes. Current count: {_runningProcesses.Count}");
     return _runningProcesses;
   }
 
+  /// <summary>
+  /// Terminates a running process by its ID.
+  /// Recursively attempts to kill the process until it has exited.
+  /// </summary>
+  /// <param name="processId">The ID of the process to terminate.</param>
   public void TerminateProcessById(int processId) {
     // Check if the process is in the running processes list
     if (!_runningProcesses.TryGetValue(processId, out var processToTerminate)) {
-      _logger.LogWarning($"Failed to terminate process {processId}. Process not found.");
       return;
     }
 
     // Kill the process
     try {
       processToTerminate.Kill(true);
-      _logger.LogInformation($"Process {processId} terminated");
     }
     catch (Exception ex) {
       _logger.LogError($"Error terminating process {processId}: {ex.Message}");
@@ -92,7 +128,17 @@ public sealed class ProcessService {
 
     // Check if the process has exited
     if (!processToTerminate.HasExited) {
-      _logger.LogWarning($"Failed to terminate process {processId}. Process still running.");
+      TerminateProcessById(processId);
+    }
+  }
+
+  /// <summary>
+  /// Terminates all currently running processes managed by this service.
+  /// </summary>
+  public void TerminateAllProcesses() {
+    _logger.LogInformation("Terminating all running processes");
+
+    foreach (var processId in _runningProcesses.Keys.ToList()) {
       TerminateProcessById(processId);
     }
   }

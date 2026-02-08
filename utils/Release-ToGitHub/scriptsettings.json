@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "Release to GitHub Script Settings",
+  "description": "Configuration file for Release-ToGitHub.ps1 script (automated GitHub release creation)",
+  "github": {
+    "tokenEnvVar": "GITHUB_MAKS_IT_COM"
+  },
+  "branches": {
+    "release": "main",
+    "dev": "dev"
+  },
+  "paths": {
+    "csprojPath": [
+      "..\\..\\src\\MaksIT.UScheduler\\MaksIT.UScheduler.csproj",
+      "..\\..\\src\\MaksIT.UScheduler.ScheduleManager\\MaksIT.UScheduler.ScheduleManager.csproj"
+    ],
+    "stagingDir": "..\\..\\staging",
+    "releaseDir": "..\\..\\release",
+    "changelogPath": "..\\..\\CHANGELOG.md",
+    "scriptsPath": "..\\..\\src\\Scripts",
+    "testProject": "..\\..\\src\\MaksIT.UScheduler.Tests"
+  },
+  "release": {
+    "zipNamePattern": "maksit.uscheduler-{version}.zip",
+    "releaseTitlePattern": "Release {version}"
+  },
+  "launcher": {
+    "enabled": true,
+    "fileName": "Start-ScheduleManager.bat",
+    "targetProject": "scheduleManager"
+  },
+  "projects": {
+    "scheduleManagerCsprojEndsWith": "MaksIT.UScheduler.ScheduleManager.csproj",
+    "uschedulerCsprojEndsWith": "MaksIT.UScheduler.csproj",
+    "scheduleManagerAppSettingsFile": "appsettings.json",
+    "uschedulerAppSettingsFile": "appsettings.json",
+    "scheduleManagerServiceBinPath": "..\\MaksIT.UScheduler\\",
+    "uschedulerLogDir": "..\\..\\Logs",
+    "scriptsRelativeToExe": "..\\..\\Scripts"
+  },
+  "_comments": {
+    "projects": {
+      "scheduleManagerCsprojEndsWith": "Used to detect ScheduleManager csproj from csprojPath list",
+      "uschedulerCsprojEndsWith": "Used to detect UScheduler csproj from csprojPath list",
+      "scheduleManagerAppSettingsFile": "Config file name inside published output for ScheduleManager",
+      "uschedulerAppSettingsFile": "Config file name inside published output for UScheduler",
+      "scheduleManagerServiceBinPath": "Value written into USchedulerSettings.ServiceBinPath in ScheduleManager config",
+      "uschedulerLogDir": "Value written into Configuration.LogDir in UScheduler config",
+      "scriptsRelativeToExe": "Scripts base path relative to executable folder (used for appsettings script list)"
+    },
+    "shortcut": {
+      "enabled": "If true, creates a .lnk in staging root",
+      "projectRole": "Which project to point the shortcut to (ScheduleManager or UScheduler)",
+      "fileName": "Shortcut file name in staging root"
+    }
+  }
+}

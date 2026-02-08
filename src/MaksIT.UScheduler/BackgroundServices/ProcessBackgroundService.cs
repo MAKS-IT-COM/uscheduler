@@ -1,43 +1,66 @@
 using Microsoft.Extensions.Options;
 using MaksIT.UScheduler.Services;
+using MaksIT.UScheduler.Shared;
 
 
 namespace MaksIT.UScheduler.BackgroundServices;
 
+/// <summary>
+/// Background service that manages the execution of configured external processes.
+/// Continuously monitors and launches processes based on the application configuration.
+/// </summary>
 public sealed class ProcessBackgroundService : BackgroundService {
 
   private readonly ILogger<ProcessBackgroundService> _logger;
-  private readonly Configuration _configuration;
-  private readonly ProcessService _processService;
+  private readonly IOptionsMonitor<Configuration> _optionsMonitor;
+  private readonly IProcessService _processService;
 
+  /// <summary>
+  /// Initializes a new instance of the <see cref="ProcessBackgroundService"/> class.
+  /// </summary>
+  /// <param name="logger">The logger instance for this service.</param>
+  /// <param name="options">The configuration options containing process definitions.</param>
+  /// <param name="processService">The process service for executing processes.</param>
   public ProcessBackgroundService(
     ILogger<ProcessBackgroundService> logger,
-    IOptions<Configuration> options,
-    ProcessService processService
+    IOptionsMonitor<Configuration> optionsMonitor,
+    IProcessService processService
   ) {
     _logger = logger;
-    _configuration = options.Value;
+    _optionsMonitor = optionsMonitor;
     _processService = processService;
   }
 
+  /// <summary>
+  /// Executes the background service, continuously launching configured processes in parallel.
+  /// Processes are checked and launched every 10 seconds.
+  /// </summary>
+  /// <param name="stoppingToken">Cancellation token that signals when the service should stop.</param>
+  /// <returns>A task representing the background operation.</returns>
   protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
     _logger.LogInformation("Starting ProcessBackgroundService");
 
     try {
-      var processes = _configuration.Processes;
-
       while (!stoppingToken.IsCancellationRequested) {
+        // Always get the latest configuration
+        var processes = _optionsMonitor.CurrentValue.Processes;
+
         _logger.LogInformation("Checking for processes to run");
 
-        foreach (var process in processes) {
-          var processPath = process.Path;
-          var processArgs = process.Args;
+        // Launch all enabled processes in parallel
+        var processTasks = processes
+          .Where(process => !process.Disabled && !string.IsNullOrEmpty(process.Path))
+          .Select(process => {
+            var argsString = process.Args != null ? string.Join(", ", process.Args) : "";
+            _logger.LogInformation($"Launching process {process.Path} with arguments {argsString}");
+            return _processService.RunProcessAsync(process.Path, process.Args, stoppingToken);
+          })
+          .ToList();
 
-          if (processPath == string.Empty)
-            continue;
-
-          _logger.LogInformation($"Running process {processPath} with arguments {string.Join(", ", processArgs)}");
-          _processService.RunProcess(processPath, processArgs, stoppingToken);
+        if (processTasks.Count > 0) {
+          _logger.LogInformation($"Waiting for {processTasks.Count} process(es) to complete");
+          await Task.WhenAll(processTasks);
+          _logger.LogInformation("All processes completed");
         }
 
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
@@ -63,12 +86,19 @@ public sealed class ProcessBackgroundService : BackgroundService {
     }
   }
 
+  /// <summary>
+  /// Stops the background service and terminates all running processes.
+  /// </summary>
+  /// <param name="stoppingToken">Cancellation token for the stop operation.</param>
+  /// <returns>A task representing the stop operation.</returns>
   public override Task StopAsync(CancellationToken stoppingToken) {
     // Perform cleanup tasks here
     _logger.LogInformation("Stopping ProcessBackgroundService");
 
+    _processService.TerminateAllProcesses();
+
     _logger.LogInformation("All processes terminated");
 
-    return Task.CompletedTask;
+    return base.StopAsync(stoppingToken);
   }
 }

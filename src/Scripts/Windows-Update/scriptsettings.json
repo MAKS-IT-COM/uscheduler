@@ -10,12 +10,7 @@
     "runTime": ["02:00"],
     "minIntervalMinutes": 60
   },
-  "updateCategories": [
-    "Critical Updates",
-    "Security Updates",
-    "Definition Updates",
-    "Update Rollups"
-  ],
+  "updateCategories": "all",
   "exclusions": {
     "kbNumbers": [],
     "titlePatterns": [
@@ -33,7 +28,7 @@
     "dryRun": false
   },
   "reporting": {
-    "generateReport": true,
+    "generateReport": false,
     "emailNotification": false,
     "emailSettings": {
       "smtpServer": "smtp.example.com",
@@ -53,7 +48,7 @@
       "runTime": "Array of UTC times in HH:mm format when updates should run.",
       "minIntervalMinutes": "Minimum minutes between update runs to prevent duplicate executions."
     },
-    "updateCategories": "Array of update categories to install. Available: 'Critical Updates', 'Security Updates', 'Definition Updates', 'Update Rollups', 'Feature Packs', 'Service Packs', 'Tools', 'Drivers'",
+    "updateCategories": "Set to 'all' to install all updates regardless of category, or provide an array of specific categories. Available categories: 'Critical Updates', 'Security Updates', 'Definition Updates', 'Update Rollups', 'Updates', 'Feature Packs', 'Service Packs', 'Tools', 'Drivers', 'Upgrades'",
     "exclusions": {
       "kbNumbers": "Array of KB numbers to exclude (e.g. 'KB5034441')",
       "titlePatterns": "Array of wildcard patterns to exclude by title (e.g. '*Preview*', '*Optional*')"

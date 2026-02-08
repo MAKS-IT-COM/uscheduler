@@ -55,7 +55,7 @@ catch {
 # Process Settings =========================================================
 
 # Validate required settings
-$requiredSettings = @('updateCategories', 'preChecks', 'options')
+$requiredSettings = @('preChecks', 'options')
 foreach ($setting in $requiredSettings) {
     if (-not $settings.$setting) {
         Write-Error "Required setting '$setting' is missing or empty in $settingsFile"
@@ -63,12 +63,33 @@ foreach ($setting in $requiredSettings) {
     }
 }
 
+# Validate updateCategories separately (can be string "all" or array)
+if (-not $settings.updateCategories) {
+    Write-Error "Required setting 'updateCategories' is missing in $settingsFile"
+    exit 1
+}
+
 # Extract settings
-$UpdateCategories = $settings.updateCategories
+$UpdateCategoriesSetting = $settings.updateCategories
 $Exclusions = $settings.exclusions
 $PreChecks = $settings.preChecks
 $Options = $settings.options
 $Reporting = $settings.reporting
+
+# Process updateCategories - can be "all" or an array of category names
+$InstallAllCategories = $false
+$UpdateCategories = @()
+
+if ($UpdateCategoriesSetting -is [string] -and $UpdateCategoriesSetting -eq "all") {
+    $InstallAllCategories = $true
+}
+elseif ($UpdateCategoriesSetting -is [array]) {
+    $UpdateCategories = $UpdateCategoriesSetting
+}
+else {
+    Write-Error "Invalid updateCategories setting. Must be 'all' or an array of category names."
+    exit 1
+}
 
 # Get DryRun from settings
 $DryRun = $Options.dryRun
@@ -130,6 +151,77 @@ function Test-PSWindowsUpdate {
     }
 }
 
+function Get-AllUpdateCategories {
+    param([switch]$Automated)
+
+    try {
+        # Use Windows Update COM API
+        $updateSession = New-Object -ComObject Microsoft.Update.Session
+        $updateSearcher = $updateSession.CreateUpdateSearcher()
+
+        # Set to search Microsoft Update (includes more categories)
+        $microsoftUpdateServiceId = "7971f918-a847-4430-9279-4a52d1efe18d"
+        try {
+            $updateSearcher.ServiceID = $microsoftUpdateServiceId
+            $updateSearcher.ServerSelection = 3  # ssOthers
+        }
+        catch {
+            # Fall back to default
+        }
+
+        $categories = @{}
+
+        # Method 1: Search for pending and installed updates
+        $searches = @("IsInstalled=0", "IsInstalled=1 and IsHidden=0")
+
+        foreach ($searchCriteria in $searches) {
+            try {
+                $searchResult = $updateSearcher.Search($searchCriteria)
+                foreach ($update in $searchResult.Updates) {
+                    foreach ($cat in $update.Categories) {
+                        # Filter by Type = "UpdateClassification" (excludes product names)
+                        if ($cat.Name -and $cat.Type -eq "UpdateClassification") {
+                            if (-not $categories.ContainsKey($cat.Name)) {
+                                $categories[$cat.Name] = $true
+                            }
+                        }
+                    }
+                }
+            }
+            catch {
+                # Continue with next search
+            }
+        }
+
+        # Method 2: Also check update history for more categories
+        try {
+            $historyCount = $updateSearcher.GetTotalHistoryCount()
+            if ($historyCount -gt 0) {
+                $history = $updateSearcher.QueryHistory(0, [Math]::Min($historyCount, 200))
+                foreach ($entry in $history) {
+                    if ($entry.Categories) {
+                        foreach ($cat in $entry.Categories) {
+                            if ($cat.Name -and $cat.Type -eq "UpdateClassification") {
+                                if (-not $categories.ContainsKey($cat.Name)) {
+                                    $categories[$cat.Name] = $true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch {
+            # History query failed, continue with what we have
+        }
+
+        return $categories
+    }
+    catch {
+        return @{}
+    }
+}
+
 function Test-PreUpdateChecks {
     param([switch]$Automated)
 
@@ -178,6 +270,54 @@ function Test-PreUpdateChecks {
     return $true
 }
 
+function Update-DefenderSignatures {
+    param([switch]$Automated)
+
+    Write-Log "Updating Microsoft Defender signatures..." -Level Info -Automated:$Automated
+
+    try {
+        # Get current signature version before update
+        $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        $beforeVersion = if ($defenderStatus) { $defenderStatus.AntivirusSignatureVersion } else { "Unknown" }
+
+        # Update signatures using built-in cmdlet (more reliable than Windows Update)
+        Update-MpSignature -ErrorAction Stop
+
+        # Get new version
+        $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        $afterVersion = if ($defenderStatus) { $defenderStatus.AntivirusSignatureVersion } else { "Unknown" }
+
+        if ($beforeVersion -ne $afterVersion) {
+            Write-Log "Defender signatures updated: $beforeVersion -> $afterVersion" -Level Success -Automated:$Automated
+            $script:UpdateStats.Installed++
+        }
+        else {
+            Write-Log "Defender signatures already up to date (Version: $afterVersion)" -Level Info -Automated:$Automated
+        }
+
+        return $true
+    }
+    catch {
+        Write-Log "Failed to update Defender signatures: $_" -Level Warning -Automated:$Automated
+        return $false
+    }
+}
+
+function Invoke-WindowsUpdateRescan {
+    param([switch]$Automated)
+
+    Write-Log "Refreshing Windows Update UI..." -Level Info -Automated:$Automated
+
+    try {
+        # startinteractivescan refreshes the Windows Update GUI to reflect actual installed state
+        $null = Start-Process -FilePath "UsoClient.exe" -ArgumentList "startinteractivescan" -Wait -NoNewWindow -PassThru -ErrorAction SilentlyContinue
+        Write-Log "Windows Update UI refreshed" -Level Success -Automated:$Automated
+    }
+    catch {
+        Write-Log "Could not refresh Windows Update UI: $_" -Level Warning -Automated:$Automated
+    }
+}
+
 function Get-AvailableUpdates {
     param([switch]$Automated)
 
@@ -189,11 +329,21 @@ function Get-AvailableUpdates {
             $update = $_
             $included = $false
 
-            # Check categories
-            foreach ($cat in $UpdateCategories) {
-                if ($update.Categories -match $cat) {
-                    $included = $true
-                    break
+            # Check categories - if "all", include everything; otherwise filter by category list
+            if ($InstallAllCategories) {
+                $included = $true
+            }
+            else {
+                # Categories is a collection of Category objects with Name property
+                foreach ($cat in $UpdateCategories) {
+                    foreach ($updateCategory in $update.Categories) {
+                        $categoryName = if ($updateCategory.Name) { $updateCategory.Name } else { $updateCategory.ToString() }
+                        if ($categoryName -match $cat) {
+                            $included = $true
+                            break
+                        }
+                    }
+                    if ($included) { break }
                 }
             }
 
@@ -217,6 +367,12 @@ function Get-AvailableUpdates {
                         break
                     }
                 }
+            }
+
+            # Exclude Defender signature updates (handled separately via Update-MpSignature)
+            if ($included -and $update.Title -like "*Security Intelligence Update for Microsoft Defender*") {
+                Write-Log "Skipping (handled separately): $($update.Title)" -Level Info -Automated:$Automated
+                $included = $false
             }
 
             return $included
@@ -246,7 +402,8 @@ function Install-AvailableUpdates {
 
     foreach ($update in $Updates) {
         $sizeKB = [math]::Round($update.Size / 1KB, 2)
-        Write-Log "  [$($update.KBArticleIDs -join ',')] $($update.Title) ($sizeKB KB)" -Level Info -Automated:$Automated
+        $kbDisplay = if ($update.KBArticleIDs) { $update.KBArticleIDs -join ',' } else { "N/A" }
+        Write-Log "  [$kbDisplay] $($update.Title) ($sizeKB KB)" -Level Info -Automated:$Automated
     }
 
     Write-Log "========================================" -Level Info -Automated:$Automated
@@ -257,24 +414,18 @@ function Install-AvailableUpdates {
         return
     }
 
-    # Install updates
+    # Install updates - pipe directly to preserve update selection
     Write-Log "Installing updates..." -Level Info -Automated:$Automated
 
     try {
         $installParams = @{
-            MicrosoftUpdate = $true
             AcceptAll = $true
             IgnoreReboot = ($Options.rebootBehavior -ne 'auto')
             Verbose = $false
         }
 
-        # Use KBArticleID filter if available
-        $kbList = $Updates | ForEach-Object { $_.KBArticleIDs } | Where-Object { $_ }
-        if ($kbList.Count -gt 0) {
-            $installParams['KBArticleID'] = $kbList
-        }
-
-        $result = Install-WindowsUpdate @installParams
+        # Pipe updates directly to Install-WindowsUpdate for reliable installation
+        $result = $Updates | Install-WindowsUpdate @installParams
 
         # Process results
         foreach ($item in $result) {
@@ -417,6 +568,21 @@ function Start-BusinessLogic {
     Write-Log "========================================" -Level Info -Automated:$Automated
     Write-Log "Windows Update Process Started" -Level Info -Automated:$Automated
     Write-Log "Script Version: $ScriptVersion ($ScriptDate)" -Level Info -Automated:$Automated
+    if ($InstallAllCategories) {
+        Write-Log "Update Categories: ALL" -Level Info -Automated:$Automated
+        # Query and display all known categories from Windows Update
+        $knownCategories = Get-AllUpdateCategories -Automated:$Automated
+        if ($knownCategories.Count -gt 0) {
+            $categoryList = ($knownCategories.Keys | Sort-Object) -join ', '
+            Write-Log "  Available: $categoryList" -Level Info -Automated:$Automated
+        }
+        else {
+            Write-Log "  Available: (unable to query)" -Level Info -Automated:$Automated
+        }
+    }
+    else {
+        Write-Log "Update Categories: $($UpdateCategories -join ', ')" -Level Info -Automated:$Automated
+    }
     if ($DryRun) {
         Write-Log "DRY RUN MODE - No changes will be made" -Level Warning -Automated:$Automated
     }
@@ -434,6 +600,14 @@ function Start-BusinessLogic {
         exit 1
     }
 
+    # Update Microsoft Defender signatures first (more reliable than Windows Update)
+    if (-not $DryRun) {
+        $null = Update-DefenderSignatures -Automated:$Automated
+    }
+    else {
+        Write-Log "DRY RUN: Skipping Defender signature update" -Level Info -Automated:$Automated
+    }
+
     # Scan for updates
     $updates = Get-AvailableUpdates -Automated:$Automated
 
@@ -446,6 +620,11 @@ function Start-BusinessLogic {
 
         # Post-update actions
         Invoke-PostUpdateActions -Automated:$Automated
+    }
+
+    # Refresh Windows Update cache (clears stale pending updates from UI)
+    if (-not $DryRun) {
+        Invoke-WindowsUpdateRescan -Automated:$Automated
     }
 
     # Print summary

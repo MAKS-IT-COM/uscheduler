@@ -6,8 +6,12 @@
   "lastModified": "2026-01-26",
   "schedule": {
     "runMonth": [],
-    "runWeekday": ["Monday"],
-    "runTime": ["00:00"],
+    "runWeekday": [
+      "Monday"
+    ],
+    "runTime": [
+      "00:00"
+    ],
     "minIntervalMinutes": 10
   },
   "freeFileSyncExe": "C:\\Program Files\\FreeFileSync\\FreeFileSync.exe",

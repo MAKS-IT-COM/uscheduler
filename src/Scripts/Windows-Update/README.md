@@ -62,10 +62,7 @@ Windows-Update/
        "runWeekday": ["Wednesday"],
        "runTime": ["02:00"]
      },
-     "updateCategories": [
-       "Critical Updates",
-       "Security Updates"
-     ]
+     "updateCategories": "all"
    }
    ```
 
@@ -92,26 +89,60 @@ Windows-Update/
 
 ### Update Categories
 
-Available categories to install:
+The `updateCategories` setting supports two formats:
+
+| Format | Description |
+|--------|-------------|
+| `"all"` | Install updates from all categories (default) |
+| `["Category1", "Category2"]` | Install only from specified categories |
+
+**Available Categories:**
 
 | Category | Description |
 |----------|-------------|
 | `Critical Updates` | Critical security and stability updates |
 | `Security Updates` | Security-focused updates |
-| `Definition Updates` | Antivirus and malware definition updates |
+| `Definition Updates` | Antivirus/Defender definition updates (e.g., KB2267602) |
 | `Update Rollups` | Cumulative update packages |
+| `Updates` | General updates |
 | `Feature Packs` | New feature additions |
 | `Service Packs` | Major cumulative updates |
 | `Tools` | System tools and utilities |
 | `Drivers` | Hardware driver updates |
+| `Upgrades` | Windows version upgrades |
 
-**Example:**
+**Examples:**
+
+Install all updates (default):
+```json
+{
+  "updateCategories": "all"
+}
+```
+
+Security-focused updates only:
 ```json
 {
   "updateCategories": [
     "Critical Updates",
     "Security Updates",
     "Definition Updates"
+  ]
+}
+```
+
+Everything except drivers:
+```json
+{
+  "updateCategories": [
+    "Critical Updates",
+    "Security Updates",
+    "Definition Updates",
+    "Update Rollups",
+    "Updates",
+    "Feature Packs",
+    "Service Packs",
+    "Tools"
   ]
 }
 ```
@@ -268,6 +299,8 @@ When `-Automated` is specified:
 [INFO] ==========================================
 [INFO] Windows Update Process Started
 [INFO] Script Version: 1.0.0 (2026-01-28)
+[INFO] Update Categories: ALL (installing all available updates)
+[Info]   Available: Critical Updates, Definition Updates, Security Updates, Update Rollups, Updates
 [INFO] ==========================================
 [SUCCESS] PSWindowsUpdate module loaded
 [INFO] Running pre-update checks...
@@ -422,12 +455,13 @@ Test without installing updates (set in scriptsettings.json):
 
 1. **Test First** - Always test with `dryRun: true` before actual execution
 2. **Schedule Wisely** - Run during maintenance windows (nights, weekends)
-3. **Start Conservative** - Begin with Critical/Security updates only
-4. **Monitor Results** - Review update reports and logs regularly
-5. **Backup First** - Ensure system backups before major updates
-6. **Reboot Testing** - Test `rebootBehavior: "auto"` in non-production environment first
-7. **Exclusion Management** - Keep exclusions list minimal and documented
-8. **Review Failures** - Investigate and resolve failed updates promptly
+3. **Use "all" Categories** - Default `"all"` ensures no updates are missed (including Defender definitions)
+4. **Use Exclusions** - Exclude specific problematic updates by KB number or title pattern instead of limiting categories
+5. **Monitor Results** - Review update reports and logs regularly
+6. **Backup First** - Ensure system backups before major updates
+7. **Reboot Testing** - Test `rebootBehavior: "auto"` in non-production environment first
+8. **Exclusion Management** - Keep exclusions list minimal and documented
+9. **Review Failures** - Investigate and resolve failed updates promptly
 
 ## Security Considerations
 
@@ -456,6 +490,12 @@ Test without installing updates (set in scriptsettings.json):
 | Feature Updates | 15-60 min | 30-120 min | Yes |
 
 ## Version History
+
+### 1.0.1 (2026-01-30)
+- Added `"all"` option for updateCategories (new default)
+- Fixed category matching for PSWindowsUpdate Category objects
+- Added `Updates` and `Upgrades` to documented categories
+- Improved logging to show category mode at startup
 
 ### 1.0.0 (2026-01-28)
 - Initial release
