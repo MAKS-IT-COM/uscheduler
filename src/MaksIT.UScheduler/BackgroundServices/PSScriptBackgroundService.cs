@@ -1,42 +1,65 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using MaksIT.UScheduler.Services;
+using MaksIT.UScheduler.Shared;
 
 
 namespace MaksIT.UScheduler.BackgroundServices;
 
+/// <summary>
+/// Background service that manages the execution of configured PowerShell scripts.
+/// Continuously monitors and launches scripts based on the application configuration.
+/// </summary>
 public sealed class PSScriptBackgroundService : BackgroundService {
 
   private readonly ILogger<PSScriptBackgroundService> _logger;
-  private readonly Configuration _configuration;
-  private readonly PSScriptService _psScriptService;
+  IOptionsMonitor<Configuration> _optionsMonitor;
+  private readonly IPSScriptService _psScriptService;
 
+  /// <summary>
+  /// Initializes a new instance of the <see cref="PSScriptBackgroundService"/> class.
+  /// </summary>
+  /// <param name="logger">The logger instance for this service.</param>
+  /// <param name="options">The configuration options containing PowerShell script definitions.</param>
+  /// <param name="psScriptService">The PowerShell script service for executing scripts.</param>
   public PSScriptBackgroundService(
     ILogger<PSScriptBackgroundService> logger,
-    IOptions<Configuration> options,
-    PSScriptService psScriptService
+    IOptionsMonitor<Configuration> optionsMonitor,
+    IPSScriptService psScriptService
   ) {
     _logger = logger;
-    _configuration = options.Value;
+    _optionsMonitor = optionsMonitor;
     _psScriptService = psScriptService;
   }
 
+  /// <summary>
+  /// Executes the background service, continuously launching configured PowerShell scripts in parallel.
+  /// Scripts are checked and launched every 10 seconds.
+  /// </summary>
+  /// <param name="stoppingToken">Cancellation token that signals when the service should stop.</param>
+  /// <returns>A task representing the background operation.</returns>
   protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
     _logger.LogInformation("Starting PSScriptBackgroundService");
 
     try {
-      var psScripts = _configuration.Powershell;
-
       while (!stoppingToken.IsCancellationRequested) {
+        // Always get the latest configuration
+        var psScripts = _optionsMonitor.CurrentValue.Powershell;
+
         _logger.LogInformation("Checking for PowerShell scripts to run");
 
-        foreach (var psScript in psScripts) {
-          var scriptPath = psScript.Path;
+        // Launch all enabled scripts in parallel
+        var scriptTasks = psScripts
+          .Where(psScript => !psScript.Disabled && !string.IsNullOrEmpty(psScript.Path))
+          .Select(psScript => {
+            _logger.LogInformation($"Launching PowerShell script {psScript.Path}");
+            return _psScriptService.RunScriptAsync(psScript.Path, psScript.IsSigned, stoppingToken);
+          })
+          .ToList();
 
-          if (scriptPath == string.Empty)
-            continue;
-
-          _logger.LogInformation($"Running PowerShell script {scriptPath}");
-          _psScriptService.RunScript(scriptPath, psScript.IsSigned, stoppingToken);
+        if (scriptTasks.Count > 0) {
+          _logger.LogInformation($"Waiting for {scriptTasks.Count} PowerShell script(s) to complete");
+          await Task.WhenAll(scriptTasks);
+          _logger.LogInformation("All PowerShell scripts completed");
         }
 
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
@@ -63,12 +86,19 @@ public sealed class PSScriptBackgroundService : BackgroundService {
   }
 
 
+  /// <summary>
+  /// Stops the background service and terminates all running PowerShell scripts.
+  /// </summary>
+  /// <param name="stoppingToken">Cancellation token for the stop operation.</param>
+  /// <returns>A task representing the stop operation.</returns>
   public override Task StopAsync(CancellationToken stoppingToken) {
     // Perform cleanup tasks here
     _logger.LogInformation("Stopping PSScriptBackgroundService");
 
+    _psScriptService.TerminateAllScripts();
+
     _logger.LogInformation("PSScriptBackgroundService stopped");
 
-    return Task.CompletedTask;
+    return base.StopAsync(stoppingToken);
   }
 }

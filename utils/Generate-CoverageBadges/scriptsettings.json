@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "Generate Coverage Badges Script Settings",
+  "description": "Configuration for Generate-CoverageBadges.ps1 script",
+  "paths": {
+    "testProject": "..\\..\\src\\MaksIT.UScheduler.Tests",
+    "badgesDir": "..\\..\\badges"
+  },
+  "badges": [
+    {
+      "name": "coverage-lines.svg",
+      "label": "Line Coverage",
+      "metric": "line"
+    },
+    {
+      "name": "coverage-branches.svg",
+      "label": "Branch Coverage",
+      "metric": "branch"
+    },
+    {
+      "name": "coverage-methods.svg",
+      "label": "Method Coverage",
+      "metric": "method"
+    }
+  ],
+  "colorThresholds": {
+    "brightgreen": 80,
+    "green": 60,
+    "yellowgreen": 40,
+    "yellow": 20,
+    "orange": 10,
+    "red": 0
+  }
+}

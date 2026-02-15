@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "File Sync Script Settings",
+  "description": "Configuration file for file-sync.ps1 script using FreeFileSync",
+  "version": "1.0.1",
+  "lastModified": "2026-01-26",
+  "schedule": {
+    "runMonth": [],
+    "runWeekday": [
+      "Monday"
+    ],
+    "runTime": [
+      "00:00"
+    ],
+    "minIntervalMinutes": 10
+  },
+  "freeFileSyncExe": "C:\\Program Files\\FreeFileSync\\FreeFileSync.exe",
+  "batchFile": "sync.ffs_batch",
+  "nasRootShare": "\\\\nassrv0001.corp.maks-it.com\\data-1",
+  "credentialEnvVar": "nassrv0001",
+  "_comments": {
+    "version": "Configuration schema version",
+    "lastModified": "Last modification date (YYYY-MM-DD)",
+    "schedule": {
+      "runMonth": "Array of month names (e.g. 'January', 'June', 'December') to run sync. Empty array = every month.",
+      "runWeekday": "Array of weekday names (e.g. 'Monday', 'Friday') to run sync. Empty array = every day.",
+      "runTime": "Array of UTC times in HH:mm format when sync should run.",
+      "minIntervalMinutes": "Minimum minutes between sync runs to prevent duplicate executions."
+    },
+    "freeFileSyncExe": "Full path to FreeFileSync.exe executable. Typically 'C:\\Program Files\\FreeFileSync\\FreeFileSync.exe'",
+    "batchFile": "FreeFileSync batch configuration file name (must be in same directory as script). Configure sync paths directly in the .ffs_batch file using FreeFileSync GUI.",
+    "nasRootShare": "UNC path to NAS root share for authentication. This is only used for connecting to the share, not for modifying batch file paths.",
+    "credentialEnvVar": "Name of Machine-level environment variable containing Base64-encoded 'username:password' for NAS authentication"
+  }
+}
