@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Management.Automation;
+using System.Management.Automation.Language;
 using System.Management.Automation.Runspaces;
 using MaksIT.UScheduler.Shared.Helpers;
 using MaksIT.UScheduler.Shared.Extensions;
@@ -50,7 +51,7 @@ public sealed class PSScriptService : IPSScriptService {
   public async Task RunScriptAsync(string scriptPath, bool signed, CancellationToken stoppingToken) {
     // Resolve relative paths against application base directory
     var resolvedPath = PathHelper.ResolvePath(scriptPath);
-    
+
     _logger.LogInformation($"Preparing to run script {resolvedPath}");
 
     if (GetRunningScriptTasks().Contains(resolvedPath)) {
@@ -63,8 +64,8 @@ public sealed class PSScriptService : IPSScriptService {
       return;
     }
 
-    if (!TryUnblockScript(resolvedPath)) {
-      _logger.LogError($"Script {resolvedPath} could not be unblocked. Aborting execution.");
+    if (!EnsureDependenciesUnblocked(resolvedPath)) {
+      _logger.LogError($"Script or dependencies for {resolvedPath} could not be unblocked. Aborting execution.");
       return;
     }
 
@@ -141,27 +142,6 @@ public sealed class PSScriptService : IPSScriptService {
   }
 
   /// <summary>
-  /// Attempts to unblock a downloaded script by removing the Zone.Identifier alternate data stream.
-  /// This is equivalent to right-clicking a file and selecting "Unblock" in Windows.
-  /// </summary>
-  /// <param name="scriptPath">The path to the script to unblock.</param>
-  /// <returns>True if the script was successfully unblocked or was not blocked; false if unblocking failed.</returns>
-  private bool TryUnblockScript(string scriptPath) {
-    try {
-      var zoneIdentifier = scriptPath + ":Zone.Identifier";
-      if (File.Exists(zoneIdentifier)) {
-        File.Delete(zoneIdentifier);
-        _logger.LogInformation($"Unblocked script {scriptPath} by removing Zone.Identifier.");
-      }
-      return true;
-    }
-    catch (Exception ex) {
-      _logger.LogWarning($"Failed to unblock script {scriptPath}: {ex.Message}");
-      return false;
-    }
-  }
-
-  /// <summary>
   /// Gets a list of script paths that are currently being executed.
   /// </summary>
   /// <returns>A list of script paths currently running.</returns>
@@ -213,5 +193,156 @@ public sealed class PSScriptService : IPSScriptService {
     _runspacePool?.Close();
     _runspacePool?.Dispose();
     _logger.LogInformation("RunspacePool disposed");
+  }
+
+  /// <summary>
+  /// Recursively scans a PowerShell script for module and dot-sourced dependencies and unblocks them.
+  /// </summary>
+  /// <param name="scriptPath">The entry script path.</param>
+  /// <returns>True if all scripts and dependencies were unblocked; false otherwise.</returns>
+  private bool EnsureDependenciesUnblocked(string scriptPath) {
+    var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    var queue = new Queue<string>();
+    queue.Enqueue(scriptPath);
+
+    bool allUnblocked = true;
+
+    while (queue.Count > 0) {
+      var current = queue.Dequeue();
+
+      if (!visited.Add(current))
+        continue;
+
+      if (!TryUnblockScript(current)) {
+        _logger.LogError($"Failed to unblock dependency: {current}");
+        allUnblocked = false;
+      }
+
+      // Scan for dependencies
+      try {
+        if (!File.Exists(current))
+          continue;
+
+        var currentDir = Path.GetDirectoryName(current);
+
+        var ast = Parser.ParseFile(current, out var tokens, out var errors);
+
+        // Handle 'using module' statements (UsingStatementAst)
+        foreach (var usingAst in ast.FindAll(a => a is UsingStatementAst, true)) {
+          var usingStmt = (UsingStatementAst)usingAst;
+          if (usingStmt.UsingStatementKind == UsingStatementKind.Module && usingStmt.Name != null) {
+            var depName = usingStmt.Name.Value;
+
+            var depPath = ResolveModulePath(depName, currentDir);
+            if (!string.IsNullOrEmpty(depPath))
+              queue.Enqueue(depPath);
+          }
+        }
+
+        // Handle Import-Module commands
+        foreach (var cmdAst in ast.FindAll(a => a is CommandAst, true)) {
+          var cmd = (CommandAst)cmdAst;
+
+          var name = cmd.GetCommandName();
+          if (string.Equals(name, "Import-Module", StringComparison.OrdinalIgnoreCase)) {
+            foreach (var arg in cmd.CommandElements.Skip(1)) {
+              var depName = arg.ToString().Trim('"', '\'', ' ');
+
+              // Skip parameters like -Name, -Force, etc.
+              if (depName.StartsWith("-", StringComparison.Ordinal))
+                continue;
+
+              var depPath = ResolveModulePath(depName, currentDir);
+              if (!string.IsNullOrEmpty(depPath))
+                queue.Enqueue(depPath);
+            }
+          }
+        }
+
+        // Handle dot-sourcing: . ./file.ps1
+        foreach (var cmdAst in ast.FindAll(a => a is CommandAst, true)) {
+          var cmd = (CommandAst)cmdAst;
+          if (cmd.InvocationOperator == TokenKind.Dot) {
+            var arg = cmd.CommandElements.FirstOrDefault();
+            if (arg != null && !string.IsNullOrEmpty(currentDir)) {
+              var depName = arg.ToString().Trim('"', '\'', ' ');
+              var depPath = Path.Combine(currentDir, depName);
+              if (File.Exists(depPath))
+                queue.Enqueue(depPath);
+            }
+          }
+        }
+      }
+      catch (Exception ex) {
+        _logger.LogWarning($"Dependency scan failed for {current}: {ex.Message}");
+      }
+    }
+
+    return allUnblocked;
+  }
+
+  /// <summary>
+  /// Attempts to resolve a module path from a module name or path.
+  /// </summary>
+  /// <param name="moduleName">Module name or path.</param>
+  /// <param name="baseDir">Base directory for relative paths.</param>
+  /// <returns>Resolved module file path or null.</returns>
+  private string? ResolveModulePath(string moduleName, string? baseDir) {
+    // If it's a path, resolve relative to baseDir
+    if (moduleName.EndsWith(".psm1", StringComparison.OrdinalIgnoreCase) || moduleName.EndsWith(".psd1", StringComparison.OrdinalIgnoreCase)) {
+      if (Path.IsPathRooted(moduleName)) {
+        if (File.Exists(moduleName))
+          return moduleName;
+      }
+      else if (!string.IsNullOrEmpty(baseDir)) {
+        var path = Path.Combine(baseDir, moduleName);
+        if (File.Exists(path))
+          return path;
+      }
+    }
+
+    // Try to find module in same directory
+    if (!string.IsNullOrEmpty(baseDir)) {
+      var psm1 = Path.Combine(baseDir, moduleName + ".psm1");
+      if (File.Exists(psm1))
+        return psm1;
+
+      var psd1 = Path.Combine(baseDir, moduleName + ".psd1");
+      if (File.Exists(psd1))
+        return psd1;
+
+      // Try subfolder with module name (common module structure)
+      var subPsm1 = Path.Combine(baseDir, moduleName, moduleName + ".psm1");
+      if (File.Exists(subPsm1))
+        return subPsm1;
+
+      var subPsd1 = Path.Combine(baseDir, moduleName, moduleName + ".psd1");
+      if (File.Exists(subPsd1))
+        return subPsd1;
+    }
+
+    return null;
+  }
+
+  /// <summary>
+  /// Attempts to unblock a downloaded script by removing the Zone.Identifier alternate data stream.
+  /// This is equivalent to right-clicking a file and selecting "Unblock" in Windows.
+  /// </summary>
+  /// <param name="scriptPath">The path to the script to unblock.</param>
+  /// <returns>True if the script was successfully unblocked or was not blocked; false if unblocking failed.</returns>
+  private bool TryUnblockScript(string scriptPath) {
+    try {
+      var zoneIdentifier = scriptPath + ":Zone.Identifier";
+      if (File.Exists(zoneIdentifier)) {
+        File.Delete(zoneIdentifier);
+        _logger.LogInformation($"Unblocked script {scriptPath} by removing Zone.Identifier.");
+      }
+      return true;
+    }
+    catch (Exception ex) {
+      _logger.LogWarning($"Failed to unblock script {scriptPath}: {ex.Message}");
+      return false;
+    }
   }
 }
