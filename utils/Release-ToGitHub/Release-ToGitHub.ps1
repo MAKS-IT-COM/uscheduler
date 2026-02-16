@@ -645,15 +645,25 @@ if (-not $isDevBranch) {
     }
 
     # Create new release using existing tag
+    # Write release notes to a temp file to avoid shell interpretation issues with special characters
+    $notesFilePath = Join-Path $releaseDir "release-notes-temp.md"
+    [System.IO.File]::WriteAllText($notesFilePath, $releaseNotes, [System.Text.UTF8Encoding]::new($false))
+
     $ghArgs = @(
         "release", "create", $tag, $zipPath
         "--repo", $repo
         "--title", $releaseName
-        "--notes", $releaseNotes
+        "--notes-file", $notesFilePath
     )
     & gh @ghArgs
+    $ghExitCode = $LASTEXITCODE
 
-    if ($LASTEXITCODE -ne 0) {
+    # Cleanup temp notes file
+    if (Test-Path $notesFilePath) {
+        Remove-Item $notesFilePath -Force
+    }
+
+    if ($ghExitCode -ne 0) {
         Write-Error "Failed to create GitHub release for tag $tag."
         exit 1
     }
