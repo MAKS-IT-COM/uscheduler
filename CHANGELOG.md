@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.0.2 - 2026-03-01
+
+### Fixed
+- **PowerShell module loading**: Scripts with module dependencies now execute correctly when running as Windows service
+  - Added recursive dependency scanning using PowerShell AST parser
+  - Automatically unblocks `Import-Module`, `using module`, and dot-sourced (`. ./file.ps1`) dependencies
+  - Resolves "AuthorizationManager check failed" errors for modules downloaded from the internet
+  - Supports `.psm1` and `.psd1` module files in script directory and subfolders
+
 ## v1.0.1 - 2026-02-15
 
 ### Added
