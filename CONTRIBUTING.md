@@ -32,7 +32,7 @@ Thank you for your interest in contributing to MaksIT.UScheduler!
 
 2. Open the solution in Visual Studio or your preferred IDE:
    ```
-   src/MaksIT.UScheduler/MaksIT.UScheduler.sln
+   src/MaksIT.UScheduler.slnx
    ```
 
 3. Build the project:

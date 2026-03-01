@@ -1,3 +1,6 @@
+#requires -Version 7.0
+#requires -PSEdition Core
+
 <#
 .SYNOPSIS
     PowerShell module for running tests with code coverage.
@@ -8,8 +11,39 @@
 
 .NOTES
     Author: MaksIT
-    Usage: Import-Module .\TestRunner.psm1
+    Usage: pwsh -Command "Import-Module .\TestRunner.psm1"
 #>
+
+function Import-LoggingModuleInternal {
+    if (Get-Command Write-Log -ErrorAction SilentlyContinue) {
+        return
+    }
+
+    $modulePath = Join-Path $PSScriptRoot "Logging.psm1"
+    if (Test-Path $modulePath) {
+        Import-Module $modulePath -Force
+    }
+}
+
+function Write-TestRunnerLogInternal {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateSet("INFO", "OK", "WARN", "ERROR", "STEP", "DEBUG")]
+        [string]$Level = "INFO"
+    )
+
+    Import-LoggingModuleInternal
+
+    if (Get-Command Write-Log -ErrorAction SilentlyContinue) {
+        Write-Log -Level $Level -Message $Message
+        return
+    }
+
+    Write-Host $Message -ForegroundColor Gray
+}
 
 function Invoke-TestsWithCoverage {
     <#
@@ -21,6 +55,9 @@ function Invoke-TestsWithCoverage {
 
     .PARAMETER Silent
         Suppress console output (for JSON consumption).
+
+    .PARAMETER ResultsDirectory
+        Optional fixed directory where test result files are written.
 
     .PARAMETER KeepResults
         Keep the TestResults folder after execution.
@@ -38,13 +75,15 @@ function Invoke-TestsWithCoverage {
 
     .EXAMPLE
         $result = Invoke-TestsWithCoverage -TestProjectPath ".\Tests"
-        if ($result.Success) { Write-Host "Line coverage: $($result.LineRate)%" }
+        if ($result.Success) { Write-TestRunnerLogInternal -Level "INFO" -Message "Line coverage: $($result.LineRate)%" }
     #>
     param(
         [Parameter(Mandatory = $true)]
         [string]$TestProjectPath,
 
         [switch]$Silent,
+
+        [string]$ResultsDirectory,
 
         [switch]$KeepResults
     )
@@ -60,7 +99,12 @@ function Invoke-TestsWithCoverage {
         }
     }
 
-    $ResultsDir = Join-Path $TestProjectDir "TestResults"
+    if ([string]::IsNullOrWhiteSpace($ResultsDirectory)) {
+        $ResultsDir = Join-Path $TestProjectDir "TestResults"
+    }
+    else {
+        $ResultsDir = [System.IO.Path]::GetFullPath($ResultsDirectory)
+    }
 
     # Clean previous results
     if (Test-Path $ResultsDir) {
@@ -68,8 +112,8 @@ function Invoke-TestsWithCoverage {
     }
 
     if (-not $Silent) {
-        Write-Host "Running tests with code coverage..." -ForegroundColor Cyan
-        Write-Host "  Test Project: $TestProjectDir" -ForegroundColor Gray
+        Write-TestRunnerLogInternal -Level "STEP" -Message "Running tests with code coverage..."
+        Write-TestRunnerLogInternal -Level "INFO" -Message "Test Project: $TestProjectDir"
     }
 
     # Run tests with coverage collection
@@ -111,8 +155,8 @@ function Invoke-TestsWithCoverage {
     }
 
     if (-not $Silent) {
-        Write-Host "Coverage file found: $($CoverageFile.FullName)" -ForegroundColor Green
-        Write-Host "Parsing coverage data..." -ForegroundColor Cyan
+        Write-TestRunnerLogInternal -Level "OK" -Message "Coverage file found: $($CoverageFile.FullName)"
+        Write-TestRunnerLogInternal -Level "STEP" -Message "Parsing coverage data..."
     }
 
     # Parse coverage data from Cobertura XML

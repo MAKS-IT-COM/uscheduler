@@ -2,9 +2,10 @@
   "$schema": "https://json-schema.org/draft-07/schema",
   "title": "Generate Coverage Badges Script Settings",
   "description": "Configuration for Generate-CoverageBadges.ps1 script",
+  "openReport": false,
   "paths": {
     "testProject": "..\\..\\src\\MaksIT.UScheduler.Tests",
-    "badgesDir": "..\\..\\badges"
+    "badgesDir": "..\\..\\assets\\badges"
   },
   "badges": [
     {
@@ -30,5 +31,14 @@
     "yellow": 20,
     "orange": 10,
     "red": 0
+  },
+  "_comments": {
+    "openReport": "If true, generate and open full HTML coverage report (requires reportgenerator tool).",
+    "paths": {
+      "testProject": "Relative path to test project used by TestRunner.",
+      "badgesDir": "Relative path where SVG coverage badges are written."
+    },
+    "badges": "List of output badges. Each entry maps a metric key (line|branch|method) to filename and label.",
+    "colorThresholds": "Coverage percentage thresholds used to pick badge colors."
   }
 }

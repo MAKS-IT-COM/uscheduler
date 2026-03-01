@@ -1,9 +1,11 @@
 # MaksIT Unified Scheduler Service
 
-![Line Coverage](badges/coverage-lines.svg) ![Branch Coverage](badges/coverage-branches.svg) ![Method Coverage](badges/coverage-methods.svg)
+![Line Coverage](assets/badges/coverage-lines.svg) ![Branch Coverage](assets/badges/coverage-branches.svg) ![Method Coverage](assets/badges/coverage-methods.svg)
 
 A modern, fully rewritten Windows service built on **.NET 10** for scheduling and running PowerShell scripts and console applications.
 Designed for system administrators — and also for those who *feel like* system administrators — who need a predictable, resilient, and secure background execution environment.
+
+> **Tip:** A graphical [Schedule Manager UI](#schedule-manager-ui) is included for easy service registration, script scheduling, and log viewing — no command-line required.
 
 ---
 
@@ -16,6 +18,12 @@ Designed for system administrators — and also for those who *feel like* system
   - [Installation](#installation)
     - [Using CLI Commands](#using-cli-commands)
     - [Using sc.exe](#using-scexe)
+  - [Schedule Manager UI](#schedule-manager-ui)
+    - [Getting Started](#getting-started)
+    - [Settings View](#settings-view)
+    - [Main View — Schedule Management](#main-view--schedule-management)
+    - [Service Logs View](#service-logs-view)
+    - [Script Logs View](#script-logs-view)
   - [Configuration (`appsettings.json`)](#configuration-appsettingsjson)
     - [Path Resolution](#path-resolution)
     - [Log Levels](#log-levels)
@@ -52,6 +60,7 @@ Designed for system administrators — and also for those who *feel like* system
 ## Features at a Glance
 
 * **.NET 10 Worker Service** – clean, robust, stable.
+* **Fully portable** – relocate between machines without reconfiguration.
 * **Windows only** – designed specifically for Windows services.
 * **Strongly typed configuration** via `appsettings.json`.
 * **Parallel execution** – PowerShell scripts & executables run concurrently using RunspacePool and Task.WhenAll.
@@ -120,6 +129,96 @@ sc.exe delete "MaksIT.UScheduler"
 
 ---
 
+## Schedule Manager UI
+
+The Schedule Manager is a WPF application that provides a graphical interface for managing the UScheduler service and its scheduled scripts.
+
+### Getting Started
+
+When you download and unpack the release bundle, launch `Start-ScheduleManager.bat` as administrator.
+
+![Manager launcher](./assets/explorer_6Ai8GBZ7xg.png)
+
+> **Note:** Administrator privileges are required only for service management operations (register, start, stop, unregister). Regular schedule editing can be done without elevation.
+
+### Settings View
+
+The Settings view is your starting point for configuring the Schedule Manager.
+
+![Settings view](./assets/MaksIT.UScheduler.ScheduleManager_aYFXXtK8V2.png)
+
+| Feature | Description |
+|---------|-------------|
+| **Service Bin Path** | Path to the UScheduler installation folder containing `MaksIT.UScheduler.exe` |
+| **Service Status** | Real-time status indicator (Running, Stopped, Starting, Stopping, Paused, Not Installed) |
+| **Register/Unregister** | Install or remove the Windows service (requires admin) |
+| **Start/Stop** | Control the service state (requires admin) |
+| **Refresh** | Update the current service status display |
+| **Reload Settings** | Refresh service configuration from `appsettings.json` |
+
+### Main View — Schedule Management
+
+The Main view allows you to manage script schedules and execution settings.
+
+![Main view](./assets/MaksIT.UScheduler.ScheduleManager_M7ZQAkaymD.png)
+
+**Script List Panel:**
+- Lists all PowerShell scripts configured in `appsettings.json`
+- Select a script to view and edit its schedule
+
+**Script Configuration:**
+
+| Setting | Description |
+|---------|-------------|
+| **Name** | Display name for the script |
+| **Is Signed** | Require script to be digitally signed (AllSigned policy) |
+| **Disabled** | Skip this script during scheduled execution |
+
+**Schedule Configuration:**
+
+| Setting | Description |
+|---------|-------------|
+| **Run Month** | Select specific months to run (empty = every month) |
+| **Run Weekday** | Select specific days of the week (empty = every day) |
+| **Run Time** | Add/remove specific execution times (HH:mm format) |
+| **Min Interval** | Minimum minutes between executions (prevents duplicate runs) |
+
+**Actions:**
+- **Save** — Persist schedule changes to `scriptsettings.json`
+- **Revert** — Discard unsaved changes
+- **Launch** — Execute the script immediately via its `.bat` file
+
+**Script Status:**
+- View lock file status (indicates if script is currently running)
+- View last execution timestamp
+- Remove stale lock files from crashed scripts
+
+### Service Logs View
+
+Monitor the UScheduler service activity and troubleshoot issues.
+
+![Logs view](./assets/MaksIT.UScheduler.ScheduleManager_MiY7biadQg.png)
+
+Features:
+- Browse service log files sorted by date
+- View log content directly in the application
+- Open log files in Windows Explorer
+- Refresh logs to see latest entries
+
+### Script Logs View
+
+View execution logs for individual scheduled scripts.
+
+![Script logs view](./assets/MaksIT.UScheduler.ScheduleManager_HjRiCd1jnn.png)
+
+Features:
+- Browse log folders organized by script name
+- Select and view individual log files
+- Track script execution history and errors
+- Open logs in Explorer for external tools
+
+
+
 ## Configuration (`appsettings.json`)
 
 ```json
@@ -142,12 +241,12 @@ sc.exe delete "MaksIT.UScheduler"
     "LogDir": "C:\\Logs",
 
     "Powershell": [
-      { "Path": "../Scripts/MyScript.ps1", "IsSigned": true, "Disabled": false },
+      { "Path": "..\\Scripts\\MyScript.ps1", "IsSigned": true, "Disabled": false },
       { "Path": "C:\\Scripts\\AnotherScript.ps1", "IsSigned": false, "Disabled": true }
     ],
 
     "Processes": [
-      { "Path": "../Tools/MyApp.exe", "Args": ["--option"], "RestartOnFailure": true, "Disabled": false }
+      { "Path": "..\\Tools\\MyApp.exe", "Args": ["--option"], "RestartOnFailure": true, "Disabled": false }
     ]
   }
 }
@@ -373,16 +472,13 @@ dotnet tool install --global dotnet-reportgenerator-globaltool
 
 ## Contact
 
-Maksym Sadovnychyy – MAKS-IT, 2025
+**Maksym Sadovnychyy** — [MAKS-IT](https://github.com/MAKS-IT-COM)  
 Email: maksym.sadovnychyy@gmail.com
 
 ---
 
 ## License
 
-MIT License
-Copyright (c) 2025
-Maksym Sadovnychyy – MAKS-IT
-maksym.sadovnychyy@gmail.com
+This project is licensed under the MIT License. See [LICENSE.md](LICENSE.md) for details.
 
 ---
