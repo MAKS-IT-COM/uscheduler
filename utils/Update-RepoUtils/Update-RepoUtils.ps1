@@ -51,6 +51,43 @@ else {
 $currentScriptPath = [System.IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
 $selfUpdateDirectory = 'Update-RepoUtils'
 
+function ConvertTo-NormalizedRelativePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $normalizedPath = $Path.Replace('/', [System.IO.Path]::DirectorySeparatorChar).Replace('\', [System.IO.Path]::DirectorySeparatorChar)
+    return $normalizedPath.TrimStart('.', [System.IO.Path]::DirectorySeparatorChar).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+}
+
+function Test-IsInRelativeDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RelativePath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Directories
+    )
+
+    $normalizedRelativePath = ConvertTo-NormalizedRelativePath -Path $RelativePath
+    foreach ($directory in $Directories) {
+        $normalizedDirectory = ConvertTo-NormalizedRelativePath -Path $directory
+        if ([string]::IsNullOrWhiteSpace($normalizedDirectory)) {
+            continue
+        }
+
+        if (
+            $normalizedRelativePath.Equals($normalizedDirectory, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $normalizedRelativePath.StartsWith($normalizedDirectory + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+        ) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 #region Import Modules
 
 $scriptConfigModulePath = Join-Path $utilsDir "ScriptConfig.psm1"
@@ -83,11 +120,11 @@ $dryRun = if ($null -ne $settings.dryRun) { [bool]$settings.dryRun } else { $fal
 $sourceSubdirectory = if ($settings.repository.sourceSubdirectory) { $settings.repository.sourceSubdirectory } else { 'src' }
 $preserveFileName = if ($settings.repository.preserveFileName) { $settings.repository.preserveFileName } else { 'scriptsettings.json' }
 $cloneDepth = if ($settings.repository.cloneDepth) { [int]$settings.repository.cloneDepth } else { 1 }
-$skippedRelativeDirectories = if ($settings.repository.skippedRelativeDirectories) {
+[string[]]$skippedRelativeDirectories = if ($settings.repository.skippedRelativeDirectories) {
     @(
         $settings.repository.skippedRelativeDirectories |
             ForEach-Object {
-                ([string]$_).Replace('/', [System.IO.Path]::DirectorySeparatorChar).Replace('\', [System.IO.Path]::DirectorySeparatorChar)
+                ConvertTo-NormalizedRelativePath -Path ([string]$_)
             }
     )
 }
@@ -196,7 +233,7 @@ try {
     }
 
     $preservedFiles = @()
-    $updatePhaseSkippedDirectories = $skippedRelativeDirectories + $selfUpdateDirectory
+    [string[]]$updatePhaseSkippedDirectories = @($skippedRelativeDirectories) + $selfUpdateDirectory
     $existingPreservedFiles = Get-ChildItem -Path $targetDirectory -Recurse -File -Filter $preserveFileName -ErrorAction SilentlyContinue
     if ($existingPreservedFiles) {
         foreach ($file in $existingPreservedFiles) {
@@ -234,13 +271,7 @@ try {
     $filesToRemove = Get-ChildItem -Path $targetDirectory -Recurse -Force -File |
         Where-Object {
             $relativePath = [System.IO.Path]::GetRelativePath($targetDirectory, $_.FullName)
-            $isInSkippedDirectory = $false
-            foreach ($skippedDirectory in $updatePhaseSkippedDirectories) {
-                if ($relativePath.StartsWith($skippedDirectory + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    $isInSkippedDirectory = $true
-                    break
-                }
-            }
+            $isInSkippedDirectory = Test-IsInRelativeDirectory -RelativePath $relativePath -Directories $updatePhaseSkippedDirectories
 
             $_.Name -ne $preserveFileName -and
             -not $isInSkippedDirectory
@@ -254,6 +285,11 @@ try {
         Sort-Object { $_.FullName.Length } -Descending
 
     foreach ($directory in $directoriesToRemove) {
+        $relativePath = [System.IO.Path]::GetRelativePath($targetDirectory, $directory.FullName)
+        if (Test-IsInRelativeDirectory -RelativePath $relativePath -Directories $updatePhaseSkippedDirectories) {
+            continue
+        }
+
         $remainingItems = Get-ChildItem -Path $directory.FullName -Force -ErrorAction SilentlyContinue
         if (-not $remainingItems) {
             Remove-Item -Path $directory.FullName -Force
@@ -265,13 +301,7 @@ try {
     $sourceFilesToCopy = Get-ChildItem -Path $clonedSourceDirectory -Recurse -Force -File |
         Where-Object {
             $relativePath = [System.IO.Path]::GetRelativePath($clonedSourceDirectory, $_.FullName)
-            $isInSkippedDirectory = $false
-            foreach ($skippedDirectory in $updatePhaseSkippedDirectories) {
-                if ($relativePath.StartsWith($skippedDirectory + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    $isInSkippedDirectory = $true
-                    break
-                }
-            }
+            $isInSkippedDirectory = Test-IsInRelativeDirectory -RelativePath $relativePath -Directories $updatePhaseSkippedDirectories
 
             -not $isInSkippedDirectory
         }
