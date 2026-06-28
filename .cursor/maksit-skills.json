@@ -1,0 +1,9 @@
+{
+  "$schema": "homelab-maksit-skills-manifest-v1",
+  "skillsRootRelative": "E:\\Users\\maksym\\source\\repos\\private\\homelab\\ai\\skills",
+  "skills": [
+    "common/csharp",
+    "common/maksit-repo-maintenance",
+    "local-ollama"
+  ]
+}

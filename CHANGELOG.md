@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v1.0.2 - 2026-03-01
+## [1.0.3] - 2026-06-28
+
+### Added
+- **RepoUtils release engine**: `utils/engines/release/` with `BundleCustomization` plugin for bundled ZIP releases
+- **`.editorconfig`**: repo-wide C# formatting (2-space indent, MaksIT brace style)
+
+### Changed
+- **PSScriptGateway**: MaksIT.Core logging/middleware, layered config, camelCase JSON, and `Result<T>` → `ToActionResult()` flow
+- **README** and **CONTRIBUTING**: RepoUtils test/release entry points, commit format, and coverage badge workflow
+
+### Fixed
+- **Release packaging**: `utils/Invoke-ReleasePackage.bat` now targets a wired release engine (previously missing `utils/engines/release/`)
+- **ScheduleManager version**: aligned with `MaksIT.UScheduler` at `1.0.3`
+
+## [1.0.2] - 2026-03-01
 
 ### Fixed
 - **PowerShell module loading**: Scripts with module dependencies now execute correctly when running as Windows service
@@ -14,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Resolves "AuthorizationManager check failed" errors for modules downloaded from the internet
   - Supports `.psm1` and `.psd1` module files in script directory and subfolders
 
-## v1.0.1 - 2026-02-15
+## [1.0.1] - 2026-02-15
 
 ### Added
 - **CLI service management**: Added command-line arguments for service installation and management
@@ -53,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Background services use `Task.WhenAll` to launch all tasks simultaneously
 - **Unit test improvements**: Refactored tests to use `IOptionsMonitor<Configuration>` for better coverage and reliability
 
-## v1.0.0 - 2025-12-06
+## [1.0.0] - 2025-12-06
 
 ### Major Changes
 - Migrate of the Unified Scheduler Service in .NET 10 (previously .NET 8).
@@ -78,7 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- 
 Template for new releases:
 
-## v1.x.x - YYYY-MM-DD
+## [1.x.x] - YYYY-MM-DD
 
 ### Added
 - New features
