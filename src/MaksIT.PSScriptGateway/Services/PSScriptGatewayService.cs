@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Management.Automation;
 using MaksIT.PSScriptGateway.Configuration;
 using MaksIT.PSScriptGateway.Models;
+using MaksIT.Results;
 using MaksIT.UScheduler.Shared.Helpers;
 using Microsoft.Extensions.Options;
 
@@ -21,14 +22,14 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
     _scriptsRoot = ResolveScriptsRoot(options.Value.ScriptsRoot);
   }
 
-  public async Task<ScriptExecutionResponse> ExecuteAsync(
+  public async Task<Result<object?>> ExecuteAsync(
     string scriptName,
     ScriptExecutionRequest request,
     CancellationToken cancellationToken)
   {
     var scriptPath = ResolveScriptPath(scriptName);
     if (scriptPath is null)
-      return new ScriptExecutionResponse(StatusCodes.Status404NotFound, null, ["Script not found."]);
+      return Result<object?>.NotFound(null, "Script not found.");
 
     using var powerShell = PowerShell.Create();
     using var registration = cancellationToken.Register(() => {
@@ -58,15 +59,18 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
       output = await Task.Run(() => powerShell.Invoke(), cancellationToken);
     }
     catch (OperationCanceledException) {
-      return new ScriptExecutionResponse(StatusCodes.Status499ClientClosedRequest, null, ["The request was canceled."]);
+      return ScriptExecutionResultFactory.FromResponse(
+        StatusCodes.Status499ClientClosedRequest,
+        null,
+        ["The request was canceled."]);
     }
     catch (RuntimeException exception) {
       _logger.LogError(exception, "PowerShell runtime error while executing {ScriptPath}", scriptPath);
-      return new ScriptExecutionResponse(StatusCodes.Status500InternalServerError, null, [exception.Message]);
+      return Result<object?>.InternalServerError(null, exception.Message);
     }
     catch (Exception exception) {
       _logger.LogError(exception, "Unhandled error while executing {ScriptPath}", scriptPath);
-      return new ScriptExecutionResponse(StatusCodes.Status500InternalServerError, null, ["Unhandled script execution error."]);
+      return Result<object?>.InternalServerError(null, "Unhandled script execution error.");
     }
 
     if (TryParseScriptResponse(output, out var response))
@@ -78,13 +82,12 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
         .Where(message => !string.IsNullOrWhiteSpace(message))
         .ToArray();
 
-      return new ScriptExecutionResponse(
-        StatusCodes.Status500InternalServerError,
-        null,
-        errors.Length == 0 ? ["Script execution failed."] : errors);
+      return errors.Length == 0
+        ? Result<object?>.InternalServerError(null, "Script execution failed.")
+        : Result<object?>.InternalServerError(null, errors);
     }
 
-    return new ScriptExecutionResponse(StatusCodes.Status204NoContent, null, ["No content."]);
+    return Result<object?>.NoContent(null, "No content.");
   }
 
   private string ResolveScriptsRoot(string scriptsRoot)
@@ -112,9 +115,9 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
     return File.Exists(combinedPath) ? combinedPath : null;
   }
 
-  private static bool TryParseScriptResponse(Collection<PSObject> output, out ScriptExecutionResponse response)
+  private static bool TryParseScriptResponse(Collection<PSObject> output, out Result<object?> response)
   {
-    response = default!;
+    response = null!;
 
     if (output.Count == 0)
       return false;
@@ -124,13 +127,13 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
 
     var values = output.Select(UnwrapValue).ToArray();
     var payload = values.Length == 1 ? values[0] : values;
-    response = new ScriptExecutionResponse(StatusCodes.Status200OK, payload, ["OK"]);
+    response = Result<object?>.Ok(payload, ["OK"]);
     return true;
   }
 
-  private static bool TryParseExplicitResponse(PSObject psObject, out ScriptExecutionResponse response)
+  private static bool TryParseExplicitResponse(PSObject psObject, out Result<object?> response)
   {
-    response = default!;
+    response = null!;
 
     if (!TryReadIntProperty(psObject, "StatusCode", out var statusCode))
       return false;
@@ -141,7 +144,7 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
       ?? ReadProperty(psObject, "Data")
       ?? ReadProperty(psObject, "Result");
 
-    response = new ScriptExecutionResponse(statusCode, value, messages);
+    response = ScriptExecutionResultFactory.FromResponse(statusCode, value, messages);
     return true;
   }
 

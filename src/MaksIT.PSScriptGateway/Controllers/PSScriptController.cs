@@ -1,5 +1,6 @@
 using MaksIT.PSScriptGateway.Models;
 using MaksIT.PSScriptGateway.Services;
+using MaksIT.Results;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MaksIT.PSScriptGateway.Controllers;
@@ -20,8 +21,8 @@ public sealed class PSScriptController : ControllerBase
   public async Task<IActionResult> Execute(string scriptName, CancellationToken cancellationToken)
   {
     var request = await BuildRequestAsync(scriptName, cancellationToken);
-    var response = await _scriptGatewayService.ExecuteAsync(scriptName, request, cancellationToken);
-    return ResultMapper.ToActionResult(response.StatusCode, response.Value, response.Messages);
+    var result = await _scriptGatewayService.ExecuteAsync(scriptName, request, cancellationToken);
+    return result.ToActionResult();
   }
 
   private async Task<ScriptExecutionRequest> BuildRequestAsync(string scriptName, CancellationToken cancellationToken)
