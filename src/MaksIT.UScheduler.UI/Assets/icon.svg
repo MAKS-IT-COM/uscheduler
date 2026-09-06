@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="UScheduler">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#33A5CF"/>
+      <stop offset="1" stop-color="#002A6A"/>
+    </linearGradient>
+    <clipPath id="icon">
+      <rect width="256" height="256" rx="57" ry="57"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#icon)">
+    <rect width="256" height="256" fill="url(#bg)"/>
+    <ellipse cx="128" cy="8" rx="150" ry="88" fill="#ffffff" opacity="0.16"/>
+    <circle cx="128" cy="128" r="72" fill="#F4FAFD"/>
+    <circle cx="128" cy="128" r="64" fill="#E8F4FC"/>
+    <rect x="124" y="72" width="8" height="16" rx="3" fill="#002A6A"/>
+    <rect x="168" y="124" width="16" height="8" rx="3" fill="#002A6A"/>
+    <rect x="124" y="168" width="8" height="16" rx="3" fill="#002A6A"/>
+    <rect x="72" y="124" width="16" height="8" rx="3" fill="#002A6A"/>
+    <line x1="128" y1="128" x2="128" y2="92" stroke="#002A6A" stroke-width="7" stroke-linecap="round"/>
+    <line x1="128" y1="128" x2="164" y2="112" stroke="#002A6A" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="128" cy="128" r="6" fill="#002A6A"/>
+  </g>
+</svg>

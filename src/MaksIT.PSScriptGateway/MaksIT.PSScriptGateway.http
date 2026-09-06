@@ -1,0 +1,6 @@
+@MaksIT.PSScriptGateway_HostAddress = http://localhost:5078
+
+GET {{MaksIT.PSScriptGateway_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

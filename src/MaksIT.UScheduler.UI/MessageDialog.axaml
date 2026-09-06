@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MaksIT.UScheduler.UI.MessageDialog"
+        Title="Message"
+        Icon="/Assets/icon.ico"
+        Width="440"
+        Height="180"
+        MinWidth="360"
+        MinHeight="160"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <TextBlock Name="MessageText"
+               TextWrapping="Wrap"
+               VerticalAlignment="Center" />
+
+    <Button Grid.Row="1"
+            Content="OK"
+            Width="88"
+            HorizontalAlignment="Right"
+            Margin="0,16,0,0"
+            IsDefault="True"
+            IsCancel="True"
+            Click="Ok_Click" />
+  </Grid>
+</Window>

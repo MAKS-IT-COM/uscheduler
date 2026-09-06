@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="MaksIT.PSScriptGateway/MaksIT.PSScriptGateway.csproj" />
+  <Project Path="MaksIT.UScheduler.UI/MaksIT.UScheduler.UI.csproj" />
+  <Project Path="MaksIT.UScheduler.Shared/MaksIT.UScheduler.Shared.csproj" />
+  <Project Path="MaksIT.UScheduler.Tests/MaksIT.UScheduler.Tests.csproj" />
+  <Project Path="MaksIT.UScheduler/MaksIT.UScheduler.csproj" />
+</Solution>

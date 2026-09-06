@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
-using MaksIT.UScheduler.Services;
 using MaksIT.UScheduler.Shared;
+using MaksIT.UScheduler.Services;
 
 
 namespace MaksIT.UScheduler.BackgroundServices;
@@ -43,16 +43,18 @@ public sealed class PSScriptBackgroundService : BackgroundService {
     try {
       while (!stoppingToken.IsCancellationRequested) {
         // Always get the latest configuration
-        var psScripts = _optionsMonitor.CurrentValue.Powershell;
+        var config = _optionsMonitor.CurrentValue;
+        var psScripts = config.Powershell;
 
         _logger.LogInformation("Checking for PowerShell scripts to run");
 
         // Launch all enabled scripts in parallel
         var scriptTasks = psScripts
-          .Where(psScript => !psScript.Disabled && !string.IsNullOrEmpty(psScript.Path))
+          .Where(psScript => !psScript.Disabled && !string.IsNullOrEmpty(psScript.Path) && HostPlatforms.IsCompatible(psScript.Platforms))
           .Select(psScript => {
-            _logger.LogInformation($"Launching PowerShell script {psScript.Path}");
-            return _psScriptService.RunScriptAsync(psScript.Path, psScript.IsSigned, stoppingToken);
+            var resolvedPath = config.ResolveScriptPath(psScript.Path);
+            _logger.LogInformation($"Launching PowerShell script {resolvedPath}");
+            return _psScriptService.RunScriptAsync(resolvedPath, psScript.IsSigned, stoppingToken);
           })
           .ToList();
 

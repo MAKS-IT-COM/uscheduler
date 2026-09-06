@@ -5,7 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v1.0.2 - 2026-03-01
+## [Unreleased]
+
+## [1.1.0] - 2026-09-06
+
+### Added
+
+- **Avalonia UScheduler UI** on Windows and Linux (replaces WPF Schedule Manager).
+- **Linux systemd** install/start/stop for the worker (`Type=notify`), matching Windows SCM.
+- `--prepare-data` creates scripts, logs, and shared-settings folders (and ACLs) without registering the service.
+- Community desktop GitHub assets: portable `maksit-uscheduler-{version}.zip` (win-x64 worker, UI, Scripts), Windows setup exe, and Flatpak of the UI.
+- Script list shows a description and platform (`Windows` / `Linux`). Incompatible scripts stay in the list but are grayed out; the worker does not run them. Bundled Hyper-V Backup, Windows Update, and File Sync are Windows-only.
+
+### Changed
+
+- **Schedule Manager** is now **MaksIT.UScheduler.UI**. The UI launches without elevation; register/start/stop/unregister prompt for UAC (or pkexec) in place.
+- Worker and UI install to `C:\Program Files\MaksIT\UScheduler` (Linux: `/opt/maksit/uscheduler`). The Windows setup exe is **x64** (not Program Files (x86)) and ships worker + UI in that folder. Scripts live in `C:\MaksIT\Scripts` (`/var/lib/maksit/scripts`) and logs in `C:\MaksIT\Logs` (`/var/log/maksit`), with Users/group write after `--install` / `--prepare-data`. Bundled examples are copied only when the destination file or script folder does not already exist; existing customizations are left unchanged.
+- Schedule configuration is stored in `%ProgramData%\MaksIT\UScheduler\settings.json` (Linux: `/var/lib/maksit/uscheduler/settings.json`). Shipped `appsettings.json` next to the worker keeps host logging and a first-run Configuration seed. Per-user UI prefs stay in `%AppData%\MaksIT\UScheduler\settings.json`.
+- UI dark theme uses the MAKS.IT origami blues (`#33A5CF` / `#006199`). App icon is a faceted scheduler clock (not the brand M).
+- Worker is no longer Windows-only: no `win-x64` RID lock; Event Log logging stays Windows-only.
+- `sc.exe create` uses `binPath= ` / `start= auto` (space after `=`).
+- **Tests:** migrate to **xunit.v3** **4.0** + **Microsoft Testing Platform** (`src/global.json` `test.runner`; **coverlet.MTP**). README coverage badges are shields.io URLs.
+- Synced RepoUtils to the Community desktop profile (local-copy only; no `Update-RepoUtils`). Release engine QualityGate / publish / installer / Flatpak target **MaksIT.UScheduler.UI**.
+
+### Removed
+
+- WPF **MaksIT.UScheduler.ScheduleManager** project.
+- SVG coverage badges under `assets/badges/`.
+
+## [1.0.3] - 2026-06-28
+
+### Added
+- **RepoUtils release engine**: `utils/engines/release/` with `BundleCustomization` plugin for bundled ZIP releases
+- **`.editorconfig`**: repo-wide C# formatting (2-space indent, MaksIT brace style)
+
+### Changed
+- **PSScriptGateway**: MaksIT.Core logging/middleware, layered config, camelCase JSON, and `Result<T>` → `ToActionResult()` flow
+- **README** and **CONTRIBUTING**: RepoUtils test/release entry points, commit format, and coverage badge workflow
+
+### Fixed
+- **Release packaging**: `utils/Invoke-ReleasePackage.bat` now targets a wired release engine (previously missing `utils/engines/release/`)
+- **ScheduleManager version**: aligned with `MaksIT.UScheduler` at `1.0.3`
+
+## [1.0.2] - 2026-03-01
 
 ### Fixed
 - **PowerShell module loading**: Scripts with module dependencies now execute correctly when running as Windows service
@@ -14,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Resolves "AuthorizationManager check failed" errors for modules downloaded from the internet
   - Supports `.psm1` and `.psd1` module files in script directory and subfolders
 
-## v1.0.1 - 2026-02-15
+## [1.0.1] - 2026-02-15
 
 ### Added
 - **CLI service management**: Added command-line arguments for service installation and management
@@ -53,7 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Background services use `Task.WhenAll` to launch all tasks simultaneously
 - **Unit test improvements**: Refactored tests to use `IOptionsMonitor<Configuration>` for better coverage and reliability
 
-## v1.0.0 - 2025-12-06
+## [1.0.0] - 2025-12-06
 
 ### Major Changes
 - Migrate of the Unified Scheduler Service in .NET 10 (previously .NET 8).
@@ -78,7 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- 
 Template for new releases:
 
-## v1.x.x - YYYY-MM-DD
+## [1.x.x] - YYYY-MM-DD
 
 ### Added
 - New features
@@ -98,3 +140,4 @@ Template for new releases:
 ### Security
 - Security improvements
 -->
+

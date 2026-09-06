@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="20" role="img" aria-label="Method Coverage: 46.3%">
+  <title>Method Coverage: 46.3%</title>
+  <linearGradient id="s" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <clipPath id="r">
+    <rect width="150" height="20" rx="3" fill="#fff"/>
+  </clipPath>
+  <g clip-path="url(#r)">
+    <rect width="107.5" height="20" fill="#555"/>
+    <rect x="107.5" width="42.5" height="20" fill="#a4a61d"/>
+    <rect width="150" height="20" fill="url(#s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="11">
+    <text aria-hidden="true" x="53.75" y="15" fill="#010101" fill-opacity=".3">Method Coverage</text>
+    <text x="53.75" y="14" fill="#fff">Method Coverage</text>
+    <text aria-hidden="true" x="128.75" y="15" fill="#010101" fill-opacity=".3">46.3%</text>
+    <text x="128.75" y="14" fill="#fff">46.3%</text>
+  </g>
+</svg>
