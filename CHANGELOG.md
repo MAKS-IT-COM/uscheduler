@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-06
+
+### Fixed
+
+- Windows setup exe now ships bundled Scripts next to the worker and runs `--prepare-data` after files are installed, so example scripts are copied to `C:\MaksIT\Scripts` when those folders do not already exist.
+
 ## [1.1.0] - 2026-09-06
 
 ### Added

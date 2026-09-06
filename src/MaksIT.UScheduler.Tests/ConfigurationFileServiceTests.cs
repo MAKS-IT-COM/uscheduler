@@ -174,6 +174,40 @@ public class HostPathsTests {
   }
 
   [Fact]
+  public void FindBundledScriptsDirectory_finds_scripts_next_to_start() {
+    var root = Path.Combine(Path.GetTempPath(), $"uscheduler-bundled-{Guid.NewGuid():N}");
+    var start = Path.Combine(root, "install");
+    var scripts = Path.Combine(start, "Scripts");
+    Directory.CreateDirectory(Path.Combine(scripts, "Native-Sync"));
+    File.WriteAllText(Path.Combine(scripts, "Native-Sync", "native-sync.ps1"), "seed");
+
+    try {
+      var found = HostPaths.FindBundledScriptsDirectory(start);
+      Assert.Equal(Path.GetFullPath(scripts), found is null ? null : Path.GetFullPath(found));
+    }
+    finally {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
+  public void FindBundledScriptsDirectory_finds_sibling_scripts_folder() {
+    var root = Path.Combine(Path.GetTempPath(), $"uscheduler-sibling-{Guid.NewGuid():N}");
+    var start = Path.Combine(root, "MaksIT.UScheduler");
+    var scripts = Path.Combine(root, "Scripts");
+    Directory.CreateDirectory(start);
+    Directory.CreateDirectory(Path.Combine(scripts, "File-Sync"));
+
+    try {
+      var found = HostPaths.FindBundledScriptsDirectory(start);
+      Assert.Equal(Path.GetFullPath(scripts), found is null ? null : Path.GetFullPath(found));
+    }
+    finally {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
   public void ResolveScriptPath_uses_scripts_dir() {
     var dir = Path.Combine(Path.GetTempPath(), $"uscheduler-scripts-{Guid.NewGuid():N}");
     Directory.CreateDirectory(dir);

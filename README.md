@@ -57,7 +57,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 
 ## Scripts Examples
 
-> **Note:** These examples are **bundled with the release** and copied to `C:\MaksIT\Scripts` on first install **only if that folder or script is not already present**. Existing files and script folders are never overwritten or merged. They are listed in the default configuration but **disabled by default**. To enable an example, set `"Disabled": false` in `%ProgramData%\MaksIT\UScheduler\settings.json` (or use the UI).
+> **Note:** These examples are **bundled with the release** and copied to `C:\MaksIT\Scripts` by the Windows setup exe (and by `--install` / `--prepare-data`) **only if that folder or script is not already present**. Existing files and script folders are never overwritten or merged. They are listed in the default configuration but **disabled by default**. To enable an example, set `"Disabled": false` in `%ProgramData%\MaksIT\UScheduler\settings.json` (or use the UI).
 
 - [Hyper-V Backup](./src/Scripts/HyperV-Backup/README.md) - Production-ready Hyper-V VM backup solution with scheduling and retention management
 - [Native-Sync](./src/Scripts/Native-Sync/README.md) - Production-ready file synchronization solution using pure PowerShell with no external dependencies
@@ -91,12 +91,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 | Location | Purpose | Who can write |
 |----------|---------|----------------|
 | `C:\Program Files\MaksIT\UScheduler` | Worker (`MaksIT.UScheduler.exe`) and UI (`MaksIT.UScheduler.UI.exe`) | Administrators |
-| `C:\MaksIT\Scripts` | Scheduled scripts (all users). Install copies bundled examples only into missing folders; existing scripts are never overwritten. | Users (after install) |
+| `C:\MaksIT\Scripts` | Scheduled scripts (all users). The Windows setup exe (and `--install` / `--prepare-data`) copies bundled examples only into missing folders; existing scripts are never overwritten. | Users (after install) |
 | `C:\MaksIT\Logs` | Service and script logs | Users (after install) |
 | `%ProgramData%\MaksIT\UScheduler\settings.json` | Shared schedule configuration | Users (after install) |
 | `%AppData%\MaksIT\UScheduler\settings.json` | Per-user UI prefs (service bin path override) | Current user |
 
-Registering the service (or `MaksIT.UScheduler --prepare-data`) creates the `C:\MaksIT` and ProgramData folders and grants the Users group modify rights, so the UI can stay unelevated.
+The Windows setup exe, registering the service, or `MaksIT.UScheduler --prepare-data` creates the `C:\MaksIT` and ProgramData folders, copies bundled example scripts when missing, and grants the Users group modify rights so the UI can stay unelevated.
 
 ### Using CLI Commands
 

@@ -41,13 +41,23 @@ public static class HostDataDirectories {
           GrantUnixGroupWrite(settingsDir, messages);
       }
 
-      var copy = CopySeedScripts(installDir, HostPaths.DefaultScriptsDirectory);
-      if (copy.CopiedFiles > 0)
-        messages.Add($"Copied {copy.CopiedFiles} new seed script file(s) to {HostPaths.DefaultScriptsDirectory}.");
-      if (copy.SkippedItems > 0)
-        messages.Add($"Left {copy.SkippedItems} existing script folder(s)/file(s) unchanged in {HostPaths.DefaultScriptsDirectory}.");
-      if (copy.CopiedFiles == 0 && copy.SkippedItems == 0)
+      var source = HostPaths.FindBundledScriptsDirectory(installDir);
+      if (source is null || !Directory.Exists(source)) {
+        messages.Add(
+          $"Bundled scripts were not found next to '{installDir}'; left {HostPaths.DefaultScriptsDirectory} unchanged.");
+      }
+      else if (PathsEqual(source, HostPaths.DefaultScriptsDirectory)) {
         messages.Add($"Scripts directory: {HostPaths.DefaultScriptsDirectory}");
+      }
+      else {
+        var copy = CopySeedScriptsIfMissing(source, HostPaths.DefaultScriptsDirectory);
+        if (copy.CopiedFiles > 0)
+          messages.Add($"Copied {copy.CopiedFiles} new seed script file(s) to {HostPaths.DefaultScriptsDirectory}.");
+        if (copy.SkippedItems > 0)
+          messages.Add($"Left {copy.SkippedItems} existing script folder(s)/file(s) unchanged in {HostPaths.DefaultScriptsDirectory}.");
+        if (copy.CopiedFiles == 0 && copy.SkippedItems == 0)
+          messages.Add($"Scripts directory: {HostPaths.DefaultScriptsDirectory}");
+      }
 
       messages.Add($"Logs directory: {HostPaths.DefaultLogDirectory}");
       messages.Add($"Shared settings: {HostPaths.SharedSettingsFile}");
@@ -56,14 +66,6 @@ public static class HostDataDirectories {
     catch (Exception ex) {
       return new HostServiceOperationResult(false, $"Failed to prepare data directories: {ex.Message}");
     }
-  }
-
-  private static SeedCopyResult CopySeedScripts(string installDirectory, string destination) {
-    var source = HostPaths.FindBundledScriptsDirectory(installDirectory);
-    if (source is null || !Directory.Exists(source) || PathsEqual(source, destination))
-      return default;
-
-    return CopySeedScriptsIfMissing(source, destination);
   }
 
   /// <summary>

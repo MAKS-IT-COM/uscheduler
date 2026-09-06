@@ -76,4 +76,27 @@ public class HostDataDirectoriesTests {
       Directory.Delete(root, true);
     }
   }
+
+  [Fact]
+  public void CopySeedScriptsIfMissing_copies_into_empty_destination() {
+    var root = Path.Combine(Path.GetTempPath(), $"uscheduler-seed-{Guid.NewGuid():N}");
+    var source = Path.Combine(root, "seed");
+    var dest = Path.Combine(root, "scripts");
+    Directory.CreateDirectory(Path.Combine(source, "File-Sync"));
+    Directory.CreateDirectory(dest);
+    File.WriteAllText(Path.Combine(source, "File-Sync", "file-sync.ps1"), "seed");
+    File.WriteAllText(Path.Combine(source, "SchedulerTemplate.psm1"), "module");
+
+    try {
+      var result = HostDataDirectories.CopySeedScriptsIfMissing(source, dest);
+
+      Assert.Equal(2, result.CopiedFiles);
+      Assert.Equal(0, result.SkippedItems);
+      Assert.Equal("seed", File.ReadAllText(Path.Combine(dest, "File-Sync", "file-sync.ps1")));
+      Assert.Equal("module", File.ReadAllText(Path.Combine(dest, "SchedulerTemplate.psm1")));
+    }
+    finally {
+      Directory.Delete(root, true);
+    }
+  }
 }

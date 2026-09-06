@@ -80,7 +80,9 @@
       "installScope": "perMachine",
       "installFolderName": "UScheduler",
       "iconPath": "..\\..\\..\\src\\MaksIT.UScheduler.UI\\Assets\\icon.ico",
-      "exeNamePattern": "maksit-uscheduler-{version}.exe"
+      "exeNamePattern": "maksit-uscheduler-{version}.exe",
+      "postInstallExecutableName": "MaksIT.UScheduler.exe",
+      "postInstallArguments": "--prepare-data"
     },
     {
       "name": "FlatpakPack",
