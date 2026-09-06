@@ -2,33 +2,33 @@
 #requires -PSEdition Core
 
 function Get-ScriptSettings {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [string]$ScriptDir,
 
         [Parameter(Mandatory = $false)]
-        [string]$SettingsFileName = "scriptSettings.json"
+        [string]$SettingsFileName = 'scriptSettings.json'
     )
 
     $settingsPath = Join-Path $ScriptDir $SettingsFileName
 
-    if (-not (Test-Path $settingsPath -PathType Leaf)) {
-        Write-Error "Settings file not found: $settingsPath"
-        exit 1
+    if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
+        throw "Settings file not found: $settingsPath"
     }
 
-    return Get-Content $settingsPath -Raw | ConvertFrom-Json
+    return Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
 }
 
 function Assert-Command {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [string]$Command
     )
 
     if (-not (Get-Command $Command -ErrorAction SilentlyContinue)) {
-        Write-Error "Required command '$Command' is missing. Aborting."
-        exit 1
+        throw "Required command '$Command' is missing. Aborting."
     }
 }
 

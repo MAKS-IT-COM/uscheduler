@@ -29,8 +29,10 @@ function Invoke-Plugin {
 
     $pluginSettings = $Settings
     $sharedSettings = $Settings.context
-    $nugetApiKeyEnvVar = $pluginSettings.nugetApiKey
     $packageFile = $sharedSettings.packageFile
+
+    $dryRun = Test-PluginSkipsRemoteMutation -Plugin $pluginSettings -SharedSettings $sharedSettings
+    $nugetSecret = Resolve-PluginSecretName -PluginSettings $pluginSettings -PropertyName 'nugetSecret' -PluginDisplayName 'DotNetNuGet' -Required
 
     Assert-Command dotnet
 
@@ -38,13 +40,21 @@ function Invoke-Plugin {
         throw "DotNetNuGet plugin requires a NuGet package artifact. Ensure DotNetPack produced a .nupkg before running DotNetNuGet."
     }
 
-    if ([string]::IsNullOrWhiteSpace($nugetApiKeyEnvVar)) {
-        throw "DotNetNuGet plugin requires 'nugetApiKey' in scriptSettings.json."
+    if ($dryRun) {
+        $nugetSource = if ([string]::IsNullOrWhiteSpace($pluginSettings.source)) {
+            "https://api.nuget.org/v3/index.json"
+        }
+        else {
+            $pluginSettings.source
+        }
+
+        Write-Log -Level "INFO" -Message "Dry run: would push $($packageFile.FullName) to $nugetSource"
+        return
     }
 
-    $nugetApiKey = [System.Environment]::GetEnvironmentVariable($nugetApiKeyEnvVar)
-    if ([string]::IsNullOrWhiteSpace($nugetApiKey)) {
-        throw "NuGet API key is not set. Set '$nugetApiKeyEnvVar' and rerun."
+    $nugetKey = Get-RepoUtilsSecretSlot -Name $nugetSecret -Settings $sharedSettings
+    if ([string]::IsNullOrWhiteSpace($nugetKey)) {
+        throw "NuGet API key is not set. Set RepoUtilsSecrets slot '$nugetSecret' (nugetSecret)."
     }
 
     $nugetSource = if ([string]::IsNullOrWhiteSpace($pluginSettings.source)) {
@@ -55,17 +65,22 @@ function Invoke-Plugin {
     }
 
     Write-Log -Level "STEP" -Message "Pushing package to NuGet feed..."
-    dotnet nuget push $packageFile.FullName -k $nugetApiKey -s $nugetSource --skip-duplicate
+    dotnet nuget push $packageFile.FullName -k $nugetKey -s $nugetSource --skip-duplicate
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to push the package to NuGet feed."
     }
 
     Write-Log -Level "OK" -Message "  NuGet push completed."
-    $sharedSettings | Add-Member -NotePropertyName publishCompleted -NotePropertyValue $true -Force
+    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Add-EnginePublishCompletion"
+    Add-EnginePublishCompletion -Context $sharedSettings -Publisher 'DotNetNuGet'
 }
 
-Export-ModuleMember -Function Invoke-Plugin
+function Get-PluginMetadata {
+    [pscustomobject]@{ mutatesRemote = $true }
+}
+
+Export-ModuleMember -Function Invoke-Plugin, Get-PluginMetadata
 
 
 

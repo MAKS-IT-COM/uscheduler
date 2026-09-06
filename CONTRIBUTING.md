@@ -86,12 +86,12 @@ This project follows [Semantic Versioning](https://semver.org/):
 - **MINOR** - New functionality (backwards compatible)
 - **PATCH** - Bug fixes (backwards compatible)
 
-Version format: `X.Y.Z` (e.g., `1.0.2`)
+Version format: `X.Y.Z` (e.g., `1.0.2`) or SemVer prerelease (`0.1.0-alpha.1`, `0.1.0-beta.1`, `0.1.0-rc.1`). Git tag is `v{version}`.
 
 Before a release, keep versions aligned across:
 
 1. **`src/MaksIT.UScheduler/MaksIT.UScheduler.csproj`** — canonical `<Version>`
-2. **`src/MaksIT.UScheduler.ScheduleManager/MaksIT.UScheduler.ScheduleManager.csproj`**
+2. **`src/MaksIT.UScheduler.UI/MaksIT.UScheduler.UI.csproj`**
 3. **`CHANGELOG.md`** — matching version header
 
 ---
@@ -104,13 +104,11 @@ Before a release, keep versions aligned across:
 .\utils\Invoke-TestEngine.bat
 ```
 
-The test engine runs `MaksIT.UScheduler.Tests`, applies the quality gate, and refreshes coverage badges in `assets/badges/`. Commit updated SVG files when coverage changes.
+The test engine runs `MaksIT.UScheduler.Tests` under **Microsoft Testing Platform** (`src/global.json` `test.runner`) with **xunit.v3** and **coverlet.MTP**, applies the quality gate, and rewrites README coverage badges as shields.io URLs. Commit README.md when coverage changes. Or run `dotnet test` on the test project.
 
 ### Sync RepoUtils
 
-```powershell
-.\utils\Update-RepoUtils.bat
-```
+Local-copy from [maksit-repoutils](https://git.maks-it.com/MAKS-IT/maksit-repoutils) (Community profile). Do not use `Update-RepoUtils`.
 
 ---
 
@@ -122,7 +120,7 @@ The test engine runs `MaksIT.UScheduler.Tests`, applies the quality gate, and re
 - PowerShell 7+
 - Git CLI
 - GitHub CLI (`gh`) — required for production releases on `main`
-- `GITHUB_MAKS_IT_COM` environment variable (see `utils/engines/release/scriptSettings.json`)
+- `GitHub` environment variable (see `utils/engines/release/scriptSettings.json`)
 
 ### Development build (`dev` branch)
 
@@ -133,7 +131,7 @@ No git tag required. Uncommitted changes are allowed.
 git checkout dev
 
 # 2. Run the release engine
-.\utils\Invoke-ReleasePackage.bat
+.\utils\Invoke-ReleasePackage-Single.bat
 ```
 
 Output: `release/maksit.uscheduler-{version}.zip` (local only; GitHub publish is skipped on non-release branches).
@@ -149,7 +147,7 @@ git merge dev
 git tag v1.0.2
 
 # 3. Run the release engine
-.\utils\Invoke-ReleasePackage.bat
+.\utils\Invoke-ReleasePackage-Single.bat
 ```
 
 On `main`, `ReleasePublishGuard` requires an exact tag on `HEAD` matching the .NET project version. The engine publishes tests, builds the bundle, creates the ZIP, and pushes a GitHub release when guard requirements are met.

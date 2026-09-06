@@ -1,6 +1,6 @@
 ---
 description: Load MaksIT agent skills from homelab (deterministic)
-globs: "**/*.{cs,csproj,slnx,md}"
+globs: "**/*.{cs,csproj,slnx,md,.editorconfig}"
 alwaysApply: true
 ---
 

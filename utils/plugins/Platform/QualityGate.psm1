@@ -10,9 +10,9 @@
     shared engine context (same object passed to every plugin as .context).
 
     Line coverage for threshold checks is resolved in order (first present wins):
-      - qualityLineCoverage  (generic; any plugin may set this)
-      - coverageLineRate     (conventional flat metric)
-      - testResult.LineRate  (object from a test plugin; property name is conventional)
+      - facts test.coverageLineRate (via Get-EngineFact)
+      - legacy qualityLineCoverage / coverageLineRate flat properties
+      - testResult.LineRate (object from a test plugin)
 
     Configure coverageThreshold > 0 to require one of those inputs. With coverageThreshold 0
     and scanVulnerabilities false, the plugin is a no-op.
@@ -64,6 +64,20 @@ function Get-LineCoveragePercentFromSharedContext {
         $Shared
     )
 
+    if (Get-Command Get-EngineFact -ErrorAction SilentlyContinue) {
+        $fromFact = Get-EngineFact -Context $Shared -Namespace 'test' -Name 'coverageLineRate' -LegacyProperty @('qualityLineCoverage', 'coverageLineRate')
+        if ($null -ne $fromFact -and -not [string]::IsNullOrWhiteSpace([string]$fromFact)) {
+            return [double]$fromFact
+        }
+
+        $testResult = Get-EngineFact -Context $Shared -Namespace 'test' -Name 'testResult' -LegacyProperty @('testResult')
+        if ($null -ne $testResult -and ($testResult.PSObject.Properties.Name -contains 'LineRate')) {
+            return [double]$testResult.LineRate
+        }
+
+        return $null
+    }
+
     foreach ($prop in @('qualityLineCoverage', 'coverageLineRate')) {
         if ($Shared.PSObject.Properties.Name -contains $prop) {
             $raw = $Shared.$prop
@@ -92,7 +106,7 @@ function Invoke-Plugin {
 
     Import-PluginDependency -ModuleName "Logging" -RequiredCommand "Write-Log"
     Import-PluginDependency -ModuleName "ScriptConfig" -RequiredCommand "Assert-Command"
-    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Resolve-RelativePaths"
+    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Get-EngineFact"
 
     $pluginSettings = $Settings
     $sharedSettings = $Settings.context
@@ -107,11 +121,9 @@ function Invoke-Plugin {
     if ($pluginSettings.PSObject.Properties['projectFiles'] -and $null -ne $pluginSettings.projectFiles) {
         $projectFiles = @(Resolve-RelativePaths -Value $pluginSettings.projectFiles -BasePath $scriptDir)
     }
-    elseif ($sharedSettings.PSObject.Properties['projectFiles'] -and $null -ne $sharedSettings.projectFiles) {
-        $projectFiles = @($sharedSettings.projectFiles)
-    }
     else {
-        $projectFiles = @()
+        $fromContext = Get-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'projectFiles' -LegacyProperty @('projectFiles')
+        $projectFiles = if ($null -ne $fromContext) { @($fromContext) } else { @() }
     }
 
     $coverageThreshold = 0
@@ -129,7 +141,7 @@ function Invoke-Plugin {
     if ($needCoverageCheck) {
         $lineRate = Get-LineCoveragePercentFromSharedContext -Shared $sharedSettings
         if ($null -eq $lineRate) {
-            throw "coverageThreshold is $coverageThreshold but shared context has no line coverage. Set one of: qualityLineCoverage, coverageLineRate, or testResult.LineRate (from an earlier plugin)."
+            throw "coverageThreshold is $coverageThreshold but shared context has no line coverage. Set test.coverageLineRate (or legacy qualityLineCoverage / coverageLineRate / testResult.LineRate) from an earlier plugin."
         }
 
         Write-Log -Level "STEP" -Message "Checking line coverage threshold against shared context..."

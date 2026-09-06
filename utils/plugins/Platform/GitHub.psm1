@@ -10,7 +10,8 @@
     repository, and creates the configured GitHub release using the
     shared release artifacts and release notes from CHANGELOG.md.
     Release notes must use Keep a Changelog headers: ## [semver] - YYYY-MM-DD
-    (see ChangelogSupport.psm1).
+    (including optional SemVer prerelease, e.g. ## [0.1.0-alpha.1] / [0.1.0-beta.1] / [0.1.0-rc.1];
+    see ChangelogSupport.psm1). Hyphenated versions are created with gh --prerelease.
 #>
 
 if (-not (Get-Command Import-PluginDependency -ErrorAction SilentlyContinue)) {
@@ -95,10 +96,11 @@ function Invoke-Plugin {
     Import-PluginDependency -ModuleName "Logging" -RequiredCommand "Write-Log"
     Import-PluginDependency -ModuleName "ScriptConfig" -RequiredCommand "Assert-Command"
     Import-PluginDependency -ModuleName "ChangelogSupport" -RequiredCommand "Get-LatestChangelogVersion"
+    Import-PluginDependency -ModuleName "ChangelogSupport" -RequiredCommand "Test-ReleaseSemverPrerelease"
+    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Get-EngineFact"
 
     $pluginSettings = $Settings
     $sharedSettings = $Settings.context
-    $githubTokenEnvVar = $pluginSettings.githubToken
     $configuredRepository = $pluginSettings.repository
     $releaseNotesFileSetting = $pluginSettings.releaseNotesFile
     $releaseTitlePatternSetting = $pluginSettings.releaseTitlePattern
@@ -108,15 +110,37 @@ function Invoke-Plugin {
     $releaseDir = $sharedSettings.releaseDir
     $releaseAssetPaths = @()
 
-    Assert-Command gh
+    $dryRun = Test-PluginSkipsRemoteMutation -Plugin $pluginSettings -SharedSettings $sharedSettings
+    $githubSecret = Resolve-PluginSecretName -PluginSettings $pluginSettings -PropertyName 'githubSecret' -PluginDisplayName 'GitHub' -Required
 
-    if ([string]::IsNullOrWhiteSpace($githubTokenEnvVar)) {
-        throw "GitHub plugin requires 'githubToken' in scriptSettings.json."
+    if ([string]::IsNullOrWhiteSpace($releaseNotesFileSetting)) {
+        throw "GitHub plugin requires 'releaseNotesFile' in scriptSettings.json."
     }
 
-    $githubToken = [System.Environment]::GetEnvironmentVariable($githubTokenEnvVar)
-    if ([string]::IsNullOrWhiteSpace($githubToken)) {
-        throw "GitHub token is not set. Set '$githubTokenEnvVar' and rerun."
+    $releaseNotesFile = [System.IO.Path]::GetFullPath((Join-Path $scriptDir $releaseNotesFileSetting))
+    $releaseNotes = Get-ReleaseNotesInternal -ReleaseNotesFile $releaseNotesFile -Version $version
+
+    if ($dryRun) {
+        $repo = Get-GitHubRepositoryInternal -ConfiguredRepository $configuredRepository
+        $releaseTitlePattern = if ([string]::IsNullOrWhiteSpace($releaseTitlePatternSetting)) {
+            "Release {version}"
+        }
+        else {
+            $releaseTitlePatternSetting
+        }
+        $releaseName = $releaseTitlePattern -replace '\{version\}', $version
+        Write-Log -Level "INFO" -Message "Dry run: would create GitHub release '$releaseName' ($tag) on $repo"
+        if (Test-ReleaseSemverPrerelease -Version ([string]$version)) {
+            Write-Log -Level "INFO" -Message "Dry run: release would be marked prerelease."
+        }
+        return
+    }
+
+    Assert-Command gh
+
+    $ghToken = Get-RepoUtilsSecretSlot -Name $githubSecret -Settings $sharedSettings
+    if ([string]::IsNullOrWhiteSpace($ghToken)) {
+        throw "GitHub token is not set. Set RepoUtilsSecrets slot '$githubSecret' (githubSecret)."
     }
 
     if ([string]::IsNullOrWhiteSpace($releaseNotesFileSetting)) {
@@ -126,7 +150,26 @@ function Invoke-Plugin {
     $releaseNotesFile = [System.IO.Path]::GetFullPath((Join-Path $scriptDir $releaseNotesFileSetting))
     $releaseNotes = Get-ReleaseNotesInternal -ReleaseNotesFile $releaseNotesFile -Version $version
 
-    if ($sharedSettings.PSObject.Properties['releaseAssetPaths'] -and $sharedSettings.releaseAssetPaths) {
+    if (Get-Command Get-EngineFact -ErrorAction SilentlyContinue) {
+        $fromAssets = Get-EngineFact -Context $sharedSettings -Namespace 'release' -Name 'assetPaths' -LegacyProperty @('releaseAssetPaths')
+        if ($null -ne $fromAssets) {
+            $releaseAssetPaths = @($fromAssets)
+        }
+        else {
+            $packageFile = Get-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'packageFile' -LegacyProperty @('packageFile')
+            if ($null -eq $packageFile) {
+                $packageFile = Get-EngineFact -Context $sharedSettings -Namespace 'npm' -Name 'packageFile' -LegacyProperty @('packageFile')
+            }
+            if ($null -ne $packageFile) {
+                $releaseAssetPaths = @($packageFile.FullName)
+                $symbolsPackageFile = Get-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'symbolsPackageFile' -LegacyProperty @('symbolsPackageFile')
+                if ($null -ne $symbolsPackageFile) {
+                    $releaseAssetPaths += $symbolsPackageFile.FullName
+                }
+            }
+        }
+    }
+    elseif ($sharedSettings.PSObject.Properties['releaseAssetPaths'] -and $sharedSettings.releaseAssetPaths) {
         $releaseAssetPaths = @($sharedSettings.releaseAssetPaths)
     }
     elseif ($sharedSettings.PSObject.Properties['packageFile'] -and $sharedSettings.packageFile) {
@@ -163,7 +206,7 @@ function Invoke-Plugin {
     Write-Log -Level "INFO" -Message "  GitHub title: $releaseName"
 
     $previousGhToken = $env:GH_TOKEN
-    $env:GH_TOKEN = $githubToken
+    $env:GH_TOKEN = $ghToken
 
     try {
         $ghVersion = & gh --version 2>&1
@@ -171,7 +214,7 @@ function Invoke-Plugin {
             Write-Log -Level "INFO" -Message "  gh version: $($ghVersion[0])"
         }
 
-        Write-Log -Level "INFO" -Message "  Auth env var: $githubTokenEnvVar (set)"
+        Write-Log -Level "INFO" -Message "  Auth secret: $githubSecret"
 
         $authArgs = @("api", "repos/$repo", "--jq", ".full_name")
         $authOutput = & gh @authArgs 2>&1
@@ -188,7 +231,7 @@ function Invoke-Plugin {
                 $authStatus | ForEach-Object { Write-Log -Level "WARN" -Message "    $_" }
             }
 
-            throw "GitHub CLI authentication failed for repository '$repo'. Ensure '$githubTokenEnvVar' is valid and has access to this repository."
+            throw "GitHub CLI authentication failed for repository '$repo'. Ensure RepoUtilsSecrets slot '$githubSecret' is valid and has access to this repository."
         }
 
         Write-Log -Level "OK" -Message "  GitHub token validated for repository: $($authOutput | Select-Object -First 1)"
@@ -209,6 +252,9 @@ function Invoke-Plugin {
         $notesFilePath = Join-Path $releaseDir ("release-notes-{0}.md" -f $version)
 
         try {
+            if (-not [string]::IsNullOrWhiteSpace($releaseDir) -and -not (Test-Path -LiteralPath $releaseDir -PathType Container)) {
+                New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
+            }
             [System.IO.File]::WriteAllText($notesFilePath, $releaseNotes, [System.Text.UTF8Encoding]::new($false))
 
             $createReleaseArgs = @("release", "create", $tag) + $releaseAssetPaths + @(
@@ -216,6 +262,10 @@ function Invoke-Plugin {
                 "--title", $releaseName,
                 "--notes-file", $notesFilePath
             )
+            if (Test-ReleaseSemverPrerelease -Version ([string]$version)) {
+                $createReleaseArgs += '--prerelease'
+            }
+
             & gh @createReleaseArgs
 
             if ($LASTEXITCODE -ne 0) {
@@ -229,7 +279,7 @@ function Invoke-Plugin {
         }
 
         Write-Log -Level "OK" -Message "  GitHub release created successfully."
-        $sharedSettings | Add-Member -NotePropertyName publishCompleted -NotePropertyValue $true -Force
+        Add-EnginePublishCompletion -Context $sharedSettings -Publisher 'GitHub'
     }
     finally {
         if ($null -ne $previousGhToken) {
@@ -241,4 +291,8 @@ function Invoke-Plugin {
     }
 }
 
-Export-ModuleMember -Function Invoke-Plugin
+function Get-PluginMetadata {
+    [pscustomobject]@{ mutatesRemote = $true }
+}
+
+Export-ModuleMember -Function Invoke-Plugin, Get-PluginMetadata

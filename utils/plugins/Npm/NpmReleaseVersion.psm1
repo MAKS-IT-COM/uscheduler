@@ -35,8 +35,9 @@ function Get-PackageJsonVersionInternal {
         throw "NpmReleaseVersion: 'version' is missing in '$PackageJsonPath'."
     }
 
-    if ($version -notmatch '^\d+\.\d+\.\d+') {
-        throw "NpmReleaseVersion: version '$version' in '$PackageJsonPath' is not a valid semver."
+    Import-PluginDependency -ModuleName "ChangelogSupport" -RequiredCommand "Test-ReleaseSemver"
+    if (-not (Test-ReleaseSemver -Version $version)) {
+        throw "NpmReleaseVersion: version '$version' in '$PackageJsonPath' is not a valid semver (X.Y.Z or X.Y.Z-prerelease)."
     }
 
     return $version
@@ -57,6 +58,10 @@ function Set-PackageJsonVersionInternal {
     ($json | ConvertTo-Json -Depth 100) + [Environment]::NewLine | Set-Content -Path $PackageJsonPath -Encoding UTF8 -NoNewline
 }
 
+function Get-PluginMetadata {
+    return [pscustomobject]@{ providesVersion = $true }
+}
+
 function Invoke-Plugin {
     param(
         [Parameter(Mandatory = $true)]
@@ -64,7 +69,8 @@ function Invoke-Plugin {
     )
 
     Import-PluginDependency -ModuleName "Logging" -RequiredCommand "Write-Log"
-    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Resolve-RelativePaths"
+    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Set-EngineState"
+    Import-PluginDependency -ModuleName "ChangelogSupport" -RequiredCommand "Test-ReleaseSemver"
 
     $pluginSettings = $Settings
     $shared = $Settings.context
@@ -90,10 +96,11 @@ function Invoke-Plugin {
         Write-Log -Level "OK" -Message "  Synchronized workspace package versions to $version."
     }
 
-    $shared | Add-Member -NotePropertyName version -NotePropertyValue $version -Force
-    $shared | Add-Member -NotePropertyName npmWorkspaceRoot -NotePropertyValue (Split-Path -Parent $packageJsonPath) -Force
-    $shared | Add-Member -NotePropertyName npmPackageJsonPath -NotePropertyValue $packageJsonPath -Force
+    $npmWorkspaceRoot = Split-Path -Parent $packageJsonPath
+    Set-EngineState -Context $shared -Name 'version' -Value $version
+    Set-EngineFact -Context $shared -Namespace 'npm' -Name 'workspaceRoot' -Value $npmWorkspaceRoot -Overwrite Replace -LegacyProperty 'npmWorkspaceRoot'
+    Set-EngineFact -Context $shared -Namespace 'npm' -Name 'packageJsonPath' -Value $packageJsonPath -Overwrite Replace -LegacyProperty 'npmPackageJsonPath'
     Write-Log -Level "OK" -Message "  Release version loaded by NpmReleaseVersion plugin: $version"
 }
 
-Export-ModuleMember -Function Invoke-Plugin
+Export-ModuleMember -Function Invoke-Plugin, Get-PluginMetadata

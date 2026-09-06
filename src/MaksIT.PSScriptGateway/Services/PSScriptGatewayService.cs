@@ -1,23 +1,22 @@
 using System.Collections;
-using System.Collections.ObjectModel;
 using System.Management.Automation;
-using MaksIT.PSScriptGateway.Configuration;
-using MaksIT.PSScriptGateway.Models;
-using MaksIT.Results;
-using MaksIT.UScheduler.Shared.Helpers;
+using System.Collections.ObjectModel;
 using Microsoft.Extensions.Options;
+using MaksIT.Results;
+using MaksIT.PSScriptGateway.Models;
+using MaksIT.UScheduler.Shared.Helpers;
+using MaksIT.PSScriptGateway.Configuration;
+
 
 namespace MaksIT.PSScriptGateway.Services;
 
-public sealed class PSScriptGatewayService : IPSScriptGatewayService
-{
+public sealed class PSScriptGatewayService : IPSScriptGatewayService {
   private readonly ILogger<PSScriptGatewayService> _logger;
   private readonly string _scriptsRoot;
 
   public PSScriptGatewayService(
     ILogger<PSScriptGatewayService> logger,
-    IOptions<PSScriptGatewayOptions> options)
-  {
+    IOptions<PSScriptGatewayOptions> options) {
     _logger = logger;
     _scriptsRoot = ResolveScriptsRoot(options.Value.ScriptsRoot);
   }
@@ -25,8 +24,7 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
   public async Task<Result<object?>> ExecuteAsync(
     string scriptName,
     ScriptExecutionRequest request,
-    CancellationToken cancellationToken)
-  {
+    CancellationToken cancellationToken) {
     var scriptPath = ResolveScriptPath(scriptName);
     if (scriptPath is null)
       return Result<object?>.NotFound(null, "Script not found.");
@@ -90,14 +88,12 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
     return Result<object?>.NoContent(null, "No content.");
   }
 
-  private string ResolveScriptsRoot(string scriptsRoot)
-  {
+  private string ResolveScriptsRoot(string scriptsRoot) {
     var resolvedRoot = PathHelper.ResolvePath(scriptsRoot);
     return Path.GetFullPath(resolvedRoot);
   }
 
-  private string? ResolveScriptPath(string scriptName)
-  {
+  private string? ResolveScriptPath(string scriptName) {
     var relativePath = scriptName
       .Replace('/', Path.DirectorySeparatorChar)
       .TrimStart(Path.DirectorySeparatorChar);
@@ -115,8 +111,7 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
     return File.Exists(combinedPath) ? combinedPath : null;
   }
 
-  private static bool TryParseScriptResponse(Collection<PSObject> output, out Result<object?> response)
-  {
+  private static bool TryParseScriptResponse(Collection<PSObject> output, out Result<object?> response) {
     response = null!;
 
     if (output.Count == 0)
@@ -131,8 +126,7 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
     return true;
   }
 
-  private static bool TryParseExplicitResponse(PSObject psObject, out Result<object?> response)
-  {
+  private static bool TryParseExplicitResponse(PSObject psObject, out Result<object?> response) {
     response = null!;
 
     if (!TryReadIntProperty(psObject, "StatusCode", out var statusCode))
@@ -148,14 +142,12 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
     return true;
   }
 
-  private static object? ReadProperty(PSObject psObject, string propertyName)
-  {
+  private static object? ReadProperty(PSObject psObject, string propertyName) {
     var property = psObject.Properties[propertyName];
     return property is null ? null : UnwrapValue(property.Value);
   }
 
-  private static IReadOnlyList<string> ReadMessages(PSObject psObject)
-  {
+  private static IReadOnlyList<string> ReadMessages(PSObject psObject) {
     var property = psObject.Properties["Messages"];
     if (property?.Value is null)
       return [];
@@ -175,8 +167,7 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
     return [property.Value.ToString() ?? "Script response."];
   }
 
-  private static bool TryReadIntProperty(PSObject psObject, string propertyName, out int value)
-  {
+  private static bool TryReadIntProperty(PSObject psObject, string propertyName, out int value) {
     value = default;
     var property = psObject.Properties[propertyName];
     if (property?.Value is null)
@@ -185,8 +176,7 @@ public sealed class PSScriptGatewayService : IPSScriptGatewayService
     return int.TryParse(property.Value.ToString(), out value);
   }
 
-  private static object? UnwrapValue(object? value)
-  {
+  private static object? UnwrapValue(object? value) {
     if (value is PSObject psObject)
       return psObject.BaseObject;
 

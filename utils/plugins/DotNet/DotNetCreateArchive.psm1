@@ -9,6 +9,10 @@
     This plugin compresses .NET release artifact inputs prepared by an earlier
     DotNet plugin (DotNetPack or DotNetPublish) into a zip file
     and exposes the resulting release assets for later publisher plugins.
+
+    For desktop apps with per-RID publish folders, the zip is the portable
+    build only (default win-x64). Windows installer and Flatpak artifacts are
+    separate GitHub assets and are never added to this zip.
 #>
 
 if (-not (Get-Command Import-PluginDependency -ErrorAction SilentlyContinue)) {
@@ -26,6 +30,7 @@ function Invoke-Plugin {
     )
 
     Import-PluginDependency -ModuleName "Logging" -RequiredCommand "Write-Log"
+    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Add-ReleaseAssetPaths"
 
     $pluginSettings = $Settings
     $sharedSettings = $Settings.context
@@ -33,13 +38,46 @@ function Invoke-Plugin {
     $version = $sharedSettings.version
     $archiveInputs = @()
 
-    if ($sharedSettings.PSObject.Properties['releaseArchiveInputs'] -and $sharedSettings.releaseArchiveInputs) {
-        $archiveInputs = @($sharedSettings.releaseArchiveInputs)
+    $fromFact = Get-EngineFact -Context $sharedSettings -Namespace 'release' -Name 'archiveInputs' -LegacyProperty @('releaseArchiveInputs')
+    if ($null -ne $fromFact) {
+        $archiveInputs = @($fromFact)
     }
-    elseif ($sharedSettings.PSObject.Properties['packageFile'] -and $sharedSettings.packageFile) {
-        $archiveInputs = @($sharedSettings.packageFile.FullName)
-        if ($sharedSettings.PSObject.Properties['symbolsPackageFile'] -and $sharedSettings.symbolsPackageFile) {
-            $archiveInputs += $sharedSettings.symbolsPackageFile.FullName
+    else {
+        $packageFile = Get-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'packageFile' -LegacyProperty @('packageFile')
+        if ($null -ne $packageFile) {
+            $archiveInputs = @($packageFile.FullName)
+            $symbolsPackageFile = Get-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'symbolsPackageFile' -LegacyProperty @('symbolsPackageFile')
+            if ($null -ne $symbolsPackageFile) {
+                $archiveInputs += $symbolsPackageFile.FullName
+            }
+        }
+    }
+
+    $portableRid = $null
+    if ($pluginSettings.PSObject.Properties['portableRuntimeIdentifier'] -and -not [string]::IsNullOrWhiteSpace([string]$pluginSettings.portableRuntimeIdentifier)) {
+        $portableRid = ([string]$pluginSettings.portableRuntimeIdentifier).Trim()
+    }
+
+    $publishOutputs = @(Get-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'publishOutputs' -Default @())
+    if ($publishOutputs.Count -gt 0) {
+        if ([string]::IsNullOrWhiteSpace($portableRid)) {
+            $portableRid = 'win-x64'
+        }
+
+        $portableOutputs = @(
+            $publishOutputs |
+                Where-Object { [string]$_.runtimeIdentifier -eq $portableRid }
+        )
+        if ($portableOutputs.Count -eq 0) {
+            $portableOutputs = @(
+                $publishOutputs |
+                    Where-Object { ([string]$_.runtimeIdentifier).StartsWith('win-', [System.StringComparison]::OrdinalIgnoreCase) }
+            )
+        }
+
+        if ($portableOutputs.Count -gt 0) {
+            $archiveInputs = @($portableOutputs | ForEach-Object { [string]$_.directory })
+            Write-Log -Level "INFO" -Message "  Portable zip uses runtime '$portableRid' only (installer/Flatpak stay out of the zip)."
         }
     }
 
@@ -78,17 +116,20 @@ function Invoke-Plugin {
 
     Write-Log -Level "OK" -Message "  Release archive ready: $zipPath"
 
-    $releaseAssetPaths = @($zipPath)
-    if ($sharedSettings.PSObject.Properties['packageFile'] -and $sharedSettings.packageFile) {
-        $releaseAssetPaths += $sharedSettings.packageFile.FullName
+    $newAssets = [System.Collections.Generic.List[string]]::new()
+    $newAssets.Add($zipPath)
+    $packageFile = Get-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'packageFile' -LegacyProperty @('packageFile')
+    if ($null -ne $packageFile) {
+        $newAssets.Add($packageFile.FullName)
     }
-    if ($sharedSettings.PSObject.Properties['symbolsPackageFile'] -and $sharedSettings.symbolsPackageFile) {
-        $releaseAssetPaths += $sharedSettings.symbolsPackageFile.FullName
+    $symbolsPackageFile = Get-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'symbolsPackageFile' -LegacyProperty @('symbolsPackageFile')
+    if ($null -ne $symbolsPackageFile) {
+        $newAssets.Add($symbolsPackageFile.FullName)
     }
 
-    $sharedSettings | Add-Member -NotePropertyName releaseDir -NotePropertyValue $artifactsDirectory -Force
-    $sharedSettings | Add-Member -NotePropertyName releaseArchivePath -NotePropertyValue $zipPath -Force
-    $sharedSettings | Add-Member -NotePropertyName releaseAssetPaths -NotePropertyValue $releaseAssetPaths -Force
+    Set-EngineState -Context $sharedSettings -Name 'releaseDir' -Value $artifactsDirectory
+    Set-EngineFact -Context $sharedSettings -Namespace 'release' -Name 'archivePath' -Value $zipPath -Overwrite Replace -LegacyProperty 'releaseArchivePath'
+    Add-ReleaseAssetPaths -Context $sharedSettings -Path @($newAssets)
 }
 
 Export-ModuleMember -Function Invoke-Plugin

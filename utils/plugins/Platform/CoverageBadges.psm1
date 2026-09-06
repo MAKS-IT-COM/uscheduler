@@ -6,7 +6,11 @@
     Coverage badge plugin for the test engine.
 
 .DESCRIPTION
-    Reads line/branch/method coverage from shared engine context and writes SVG badges.
+    Reads line/branch/method coverage from shared engine context.
+
+    badgeFormat "svg" (default): writes SVG files under badgesDir.
+    badgeFormat "shields": updates readmePath (string or array) with img.shields.io markdown
+    (no local assets).
 #>
 
 if (-not (Get-Command Import-PluginDependency -ErrorAction SilentlyContinue)) {
@@ -80,6 +84,80 @@ function New-BadgeSvgInternal {
 "@
 }
 
+function New-ShieldsIoBadgeUrlInternal {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Label,
+
+        [Parameter(Mandatory = $true)]
+        [double]$Percentage,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Color
+    )
+
+    $labelToken = ($Label -replace ' ', '%20')
+    $valueToken = "$Percentage%25"
+    return "https://img.shields.io/badge/$labelToken-$valueToken-$Color"
+}
+
+function New-ShieldsIoBadgeMarkdownInternal {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Label,
+
+        [Parameter(Mandatory = $true)]
+        [double]$Percentage,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Color
+    )
+
+    $url = New-ShieldsIoBadgeUrlInternal -Label $Label -Percentage $Percentage -Color $Color
+    return "![$Label]($url)"
+}
+
+function Update-ReadmeShieldsBadgesInternal {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ReadmePath,
+
+        [Parameter(Mandatory = $true)]
+        [object[]]$Badges,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Metrics,
+
+        [Parameter(Mandatory = $true)]
+        [psobject]$Thresholds
+    )
+
+    if (-not (Test-Path -LiteralPath $ReadmePath -PathType Leaf)) {
+        throw "CoverageBadges readmePath not found: $ReadmePath"
+    }
+
+    $content = Get-Content -LiteralPath $ReadmePath -Raw -Encoding UTF8
+
+    foreach ($badge in @($Badges)) {
+        $metricValue = $Metrics[[string]$badge.metric]
+        if ($null -eq $metricValue) {
+            throw "Unknown or missing coverage metric '$($badge.metric)' for badge label '$($badge.label)'."
+        }
+
+        $color = Get-BadgeColorInternal -percentage $metricValue -thresholds $Thresholds
+        $markdown = New-ShieldsIoBadgeMarkdownInternal -Label $badge.label -Percentage $metricValue -Color $color
+        # Horizontal whitespace only; optional CR for CRLF. Do not let \s* eat the following blank line.
+        $pattern = "(?m)^!\[$([regex]::Escape([string]$badge.label))\]\([^)]*\)[^\S\r\n]*\r?$"
+        if ($content -notmatch $pattern) {
+            throw "README badge line not found for label '$($badge.label)' in: $ReadmePath"
+        }
+
+        $content = [regex]::Replace($content, $pattern, $markdown)
+    }
+
+    $content | Out-File -LiteralPath $ReadmePath -Encoding utf8NoBOM -NoNewline
+}
+
 function Get-CoverageMetricsFromSharedContext {
     param(
         [Parameter(Mandatory = $true)]
@@ -131,17 +209,9 @@ function Invoke-Plugin {
     $scriptDir = $sharedSettings.scriptDir
     $metrics = Get-CoverageMetricsFromSharedContext -Shared $sharedSettings
 
-    $badgesDir = $sharedSettings.badgesDir
-    if ($pluginSettings.badgesDir) {
-        $badgesDirs = @(Resolve-RelativePaths -Value $pluginSettings.badgesDir -BasePath $scriptDir)
-        $badgesDir = $badgesDirs[0]
-    }
-    if ([string]::IsNullOrWhiteSpace([string]$badgesDir)) {
-        throw "CoverageBadges requires badgesDir in plugin settings or paths.badgesDir in scriptSettings.json."
-    }
-
-    if (-not (Test-Path $badgesDir)) {
-        New-Item -ItemType Directory -Path $badgesDir | Out-Null
+    $badgeFormat = 'svg'
+    if (-not [string]::IsNullOrWhiteSpace([string]$pluginSettings.badgeFormat)) {
+        $badgeFormat = [string]$pluginSettings.badgeFormat
     }
 
     $thresholds = $pluginSettings.colorThresholds
@@ -158,10 +228,56 @@ function Invoke-Plugin {
 
     Write-Log -Level "STEP" -Message "Generating coverage badges..."
 
+    if ($badgeFormat -eq 'shields') {
+        $readmePathSetting = $null
+        if ($sharedSettings.PSObject.Properties.Name -contains 'readmePath' -and $sharedSettings.readmePath) {
+            $readmePathSetting = $sharedSettings.readmePath
+        }
+        if ($pluginSettings.PSObject.Properties.Name -contains 'readmePath' -and $pluginSettings.readmePath) {
+            $readmePathSetting = $pluginSettings.readmePath
+        }
+
+        $readmePaths = @()
+        if ($null -ne $readmePathSetting) {
+            $readmePaths = @(Resolve-RelativePaths -Value $readmePathSetting -BasePath $scriptDir)
+        }
+        if ($readmePaths.Count -eq 0) {
+            throw "CoverageBadges badgeFormat 'shields' requires readmePath in plugin settings or paths.readmePath in scriptSettings.json."
+        }
+
+        foreach ($readmePath in $readmePaths) {
+            Update-ReadmeShieldsBadgesInternal -ReadmePath $readmePath -Badges @($pluginSettings.badges) -Metrics $metrics -Thresholds $thresholds
+            Write-Log -Level "OK" -Message "README shields updated: $readmePath"
+        }
+
+        foreach ($badge in @($pluginSettings.badges)) {
+            $metricValue = $metrics[[string]$badge.metric]
+            $color = Get-BadgeColorInternal -percentage $metricValue -thresholds $thresholds
+            Write-Log -Level "OK" -Message "$($badge.label): $metricValue% ($color)"
+        }
+
+        Write-Log -Level "STEP" -Message "Commit README.md to publish badge URLs."
+        return
+    }
+
+    $badgesDir = $sharedSettings.badgesDir
+    if ($pluginSettings.badgesDir) {
+        $badgesDirs = @(Resolve-RelativePaths -Value $pluginSettings.badgesDir -BasePath $scriptDir)
+        $badgesDir = $badgesDirs[0]
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$badgesDir)) {
+        throw "CoverageBadges requires badgesDir in plugin settings or paths.badgesDir in scriptSettings.json."
+    }
+
+    if (-not (Test-Path $badgesDir)) {
+        New-Item -ItemType Directory -Path $badgesDir | Out-Null
+    }
+
     foreach ($badge in @($pluginSettings.badges)) {
         $metricValue = $metrics[[string]$badge.metric]
         if ($null -eq $metricValue) {
-            throw "Unknown or missing coverage metric '$($badge.metric)' for badge '$($badge.name)'."
+            $badgeName = if ($badge.PSObject.Properties.Name -contains 'name') { $badge.name } else { $badge.label }
+            throw "Unknown or missing coverage metric '$($badge.metric)' for badge '$badgeName'."
         }
 
         $color = Get-BadgeColorInternal -percentage $metricValue -thresholds $thresholds

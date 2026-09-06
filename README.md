@@ -1,11 +1,16 @@
 # MaksIT Unified Scheduler Service
 
-![Line Coverage](assets/badges/coverage-lines.svg) ![Branch Coverage](assets/badges/coverage-branches.svg) ![Method Coverage](assets/badges/coverage-methods.svg)
+![Line Coverage](https://img.shields.io/badge/Line%20Coverage-15.2%25-orange)
+![Branch Coverage](https://img.shields.io/badge/Branch%20Coverage-7%25-red)
+![Method Coverage](https://img.shields.io/badge/Method%20Coverage-38.8%25-yellow)
+![.NET](https://img.shields.io/badge/.NET-10-512BD4)
+![License](https://img.shields.io/badge/License-MIT-blue)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6)
 
-A modern, fully rewritten Windows service built on **.NET 10** for scheduling and running PowerShell scripts and console applications.
+A modern scheduler built on **.NET 10** for running PowerShell scripts and console applications on **Windows and Linux**.
 Designed for system administrators — and also for those who *feel like* system administrators — who need a predictable, resilient, and secure background execution environment.
 
-> **Tip:** A graphical [Schedule Manager UI](#schedule-manager-ui) is included for easy service registration, script scheduling, and log viewing — no command-line required.
+> **Tip:** A graphical [UScheduler UI](#uscheduler-ui) is included for service registration, script scheduling, and log viewing — no command-line required.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and release workflow.
 
@@ -18,15 +23,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
   - [Scripts Examples](#scripts-examples)
   - [Features at a Glance](#features-at-a-glance)
   - [Installation](#installation)
+    - [Install layout](#install-layout)
     - [Using CLI Commands](#using-cli-commands)
-    - [Using sc.exe](#using-scexe)
-  - [Schedule Manager UI](#schedule-manager-ui)
+    - [Using sc.exe (Windows)](#using-scexe-windows)
+    - [Using systemd (Linux)](#using-systemd-linux)
+  - [UScheduler UI](#uscheduler-ui)
     - [Getting Started](#getting-started)
     - [Settings View](#settings-view)
     - [Main View — Schedule Management](#main-view--schedule-management)
     - [Service Logs View](#service-logs-view)
     - [Script Logs View](#script-logs-view)
-  - [Configuration (`appsettings.json`)](#configuration-appsettingsjson)
+  - [Configuration](#configuration)
+    - [Machine-wide `settings.json`](#machine-wide-settingsjson)
     - [Path Resolution](#path-resolution)
     - [Log Levels](#log-levels)
     - [PowerShell Scripts](#powershell-scripts)
@@ -49,7 +57,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 
 ## Scripts Examples
 
-> **Note:** These examples are **bundled with the release** and included in the default `appsettings.json`, but are **disabled by default**. To enable an example, set `"Disabled": false` in the configuration.
+> **Note:** These examples are **bundled with the release** and copied to `C:\MaksIT\Scripts` on first install **only if that folder or script is not already present**. Existing files and script folders are never overwritten or merged. They are listed in the default configuration but **disabled by default**. To enable an example, set `"Disabled": false` in `%ProgramData%\MaksIT\UScheduler\settings.json` (or use the UI).
 
 - [Hyper-V Backup](./src/Scripts/HyperV-Backup/README.md) - Production-ready Hyper-V VM backup solution with scheduling and retention management
 - [Native-Sync](./src/Scripts/Native-Sync/README.md) - Production-ready file synchronization solution using pure PowerShell with no external dependencies
@@ -63,10 +71,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 
 * **.NET 10 Worker Service** – clean, robust, stable.
 * **Fully portable** – relocate between machines without reconfiguration.
-* **Windows only** – designed specifically for Windows services.
-* **Strongly typed configuration** via `appsettings.json`.
+* **Windows and Linux** – Windows SCM or systemd; Avalonia UI on both.
+* **Strongly typed configuration** via machine-wide `settings.json` (ProgramData).
 * **Parallel execution** – PowerShell scripts & executables run concurrently using RunspacePool and Task.WhenAll.
-* **Relative path support** – script and process paths can be relative to the application directory.
+* **Relative path support** – script paths can be relative to `C:\MaksIT\Scripts`.
 * **Signature enforcement** (AllSigned by default).
 * **Automatic restart-on-failure** for supervised processes.
 * **Extensible logging** (file + console + Windows EventLog).
@@ -78,48 +86,75 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 
 ## Installation
 
+### Install layout
+
+| Location | Purpose | Who can write |
+|----------|---------|----------------|
+| `C:\Program Files\MaksIT\UScheduler` | Worker (`MaksIT.UScheduler.exe`) and UI (`MaksIT.UScheduler.UI.exe`) | Administrators |
+| `C:\MaksIT\Scripts` | Scheduled scripts (all users). Install copies bundled examples only into missing folders; existing scripts are never overwritten. | Users (after install) |
+| `C:\MaksIT\Logs` | Service and script logs | Users (after install) |
+| `%ProgramData%\MaksIT\UScheduler\settings.json` | Shared schedule configuration | Users (after install) |
+| `%AppData%\MaksIT\UScheduler\settings.json` | Per-user UI prefs (service bin path override) | Current user |
+
+Registering the service (or `MaksIT.UScheduler --prepare-data`) creates the `C:\MaksIT` and ProgramData folders and grants the Users group modify rights, so the UI can stay unelevated.
+
 ### Using CLI Commands
 
-The executable includes built-in service management commands. Run as Administrator:
+The executable includes built-in service management commands. Run as Administrator (Windows) or root (Linux):
 
 ```powershell
-# Install the service (auto-start enabled)
-MaksIT.UScheduler.exe --install
+# Install the service (auto-start / systemd enable)
+MaksIT.UScheduler --install
 
 # Start the service
-MaksIT.UScheduler.exe --start
+MaksIT.UScheduler --start
 
 # Check service status
-MaksIT.UScheduler.exe --status
+MaksIT.UScheduler --status
 
 # Stop the service
-MaksIT.UScheduler.exe --stop
+MaksIT.UScheduler --stop
 
 # Uninstall the service
-MaksIT.UScheduler.exe --uninstall
+MaksIT.UScheduler --uninstall
 
 # Show help
-MaksIT.UScheduler.exe --help
+MaksIT.UScheduler --help
+
+# Create data folders and ACLs without installing the service
+MaksIT.UScheduler --prepare-data
 ```
+
+On Windows the file is `MaksIT.UScheduler.exe`.
 
 | Command | Short | Description |
 |---------|-------|-------------|
-| `--install` | `-i` | Install the Windows service (auto-start) |
-| `--uninstall` | `-u` | Stop and remove the Windows service |
+| `--install` | `-i` | Install the service (Windows SCM or systemd) |
+| `--uninstall` | `-u` | Stop and remove the service |
 | `--start` | | Start the service |
 | `--stop` | | Stop the service |
 | `--status` | | Query service status |
+| `--prepare-data` | | Create `C:\MaksIT\Scripts`, `C:\MaksIT\Logs`, and shared settings (elevated) |
 | `--help` | `-h` | Show help message |
 
-> **Note:** Service management commands require administrator privileges.
+> **Note:** Service management commands require administrator / root privileges.
 
-### Using sc.exe
+### Using sc.exe (Windows)
 
 Alternatively, use Windows Service Control Manager directly:
 
 ```powershell
-sc.exe create "MaksIT.UScheduler" binpath="C:\Path\To\MaksIT.UScheduler.exe" start=auto
+sc.exe create "MaksIT.UScheduler" binPath= "C:\Path\To\MaksIT.UScheduler.exe" start= auto
 sc.exe start "MaksIT.UScheduler"
+```
+
+### Using systemd (Linux)
+
+`--install` writes `/etc/systemd/system/MaksIT.UScheduler.service` (`Type=notify`) and enables the unit. You can also:
+
+```bash
+sudo systemctl enable --now MaksIT.UScheduler
+sudo systemctl status MaksIT.UScheduler
 ```
 
 To uninstall:
@@ -131,32 +166,32 @@ sc.exe delete "MaksIT.UScheduler"
 
 ---
 
-## Schedule Manager UI
+## UScheduler UI
 
-The Schedule Manager is a WPF application that provides a graphical interface for managing the UScheduler service and its scheduled scripts.
+The UI is an **Avalonia** desktop app (Windows and Linux) for service registration, script schedules, and log viewing. Launch `MaksIT.UScheduler.UI.exe` from Program Files — it runs **without** administrator rights. Register, start, stop, and unregister prompt for elevation in place; the window stays open.
 
 ### Getting Started
 
-When you download and unpack the release bundle, launch `Start-ScheduleManager.bat` as administrator.
+When you unpack the portable zip, launch `MaksIT.UScheduler.UI.exe`. GitHub releases also ship a Windows setup exe (installs worker + UI to `C:\Program Files\MaksIT\UScheduler`) and a Flatpak of the UI.
 
 ![Manager launcher](./assets/explorer_6Ai8GBZ7xg.png)
 
-> **Note:** Administrator privileges are required only for service management operations (register, start, stop, unregister). Regular schedule editing can be done without elevation.
+> **Note:** Service management (register, start, stop, unregister) prompts for administrator approval without restarting the UI. Schedule edits go to `%ProgramData%\MaksIT\UScheduler\settings.json` and do not require elevation after the first install.
 
 ### Settings View
 
-The Settings view is your starting point for configuring the Schedule Manager.
+The Settings view is your starting point for configuring UScheduler.
 
 ![Settings view](./assets/MaksIT.UScheduler.ScheduleManager_aYFXXtK8V2.png)
 
 | Feature | Description |
 |---------|-------------|
-| **Service Bin Path** | Path to the UScheduler installation folder containing `MaksIT.UScheduler.exe` |
+| **Service Bin Path** | Path to the worker folder (auto-detected from Program Files or the UI directory; override stored in `%AppData%/MaksIT/UScheduler/settings.json`) |
 | **Service Status** | Real-time status indicator (Running, Stopped, Starting, Stopping, Paused, Not Installed) |
-| **Register/Unregister** | Install or remove the Windows service (requires admin) |
-| **Start/Stop** | Control the service state (requires admin) |
+| **Register/Unregister** | Install or remove the Windows service or systemd unit (UAC / polkit prompt, UI stays open) |
+| **Start/Stop** | Control the service state (same in-app elevation) |
 | **Refresh** | Update the current service status display |
-| **Reload Settings** | Refresh service configuration from `appsettings.json` |
+| **Reload Settings** | Refresh shared configuration from `%ProgramData%\MaksIT\UScheduler\settings.json` |
 
 ### Main View — Schedule Management
 
@@ -165,7 +200,9 @@ The Main view allows you to manage script schedules and execution settings.
 ![Main view](./assets/MaksIT.UScheduler.ScheduleManager_M7ZQAkaymD.png)
 
 **Script List Panel:**
-- Lists all PowerShell scripts configured in `appsettings.json`
+- Lists all PowerShell scripts configured in shared `settings.json`
+- Each row shows a description and which hosts it supports
+- Scripts that cannot run on this OS stay listed but are grayed out
 - Select a script to view and edit its schedule
 
 **Script Configuration:**
@@ -221,40 +258,34 @@ Features:
 
 
 
-## Configuration (`appsettings.json`)
+## Configuration
+
+### Machine-wide `settings.json`
+
+Host logging (log levels, Event Log source) stays in shipped `appsettings.json` next to `MaksIT.UScheduler.exe` under Program Files. Schedule configuration is **not** written there — a leftover `Configuration` block is copied once into the machine-wide file:
+
+`%ProgramData%\MaksIT\UScheduler\settings.json`
 
 ```json
 {
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information"
-    },
-    "EventLog": {
-      "SourceName": "MaksIT.UScheduler",
-      "LogName": "Application",
-      "LogLevel": {
-        "Microsoft": "Information",
-        "Microsoft.Hosting.Lifetime": "Information"
-      }
-    }
-  },
   "Configuration": {
     "ServiceName": "MaksIT.UScheduler",
-    "LogDir": "C:\\Logs",
+    "LogDir": "C:\\MaksIT\\Logs",
+    "ScriptsDir": "C:\\MaksIT\\Scripts",
 
     "Powershell": [
-      { "Path": "..\\Scripts\\MyScript.ps1", "IsSigned": true, "Disabled": false },
-      { "Path": "C:\\Scripts\\AnotherScript.ps1", "IsSigned": false, "Disabled": true }
+      { "Path": "File-Sync\\file-sync.ps1", "IsSigned": true, "Disabled": false },
+      { "Path": "C:\\MaksIT\\Scripts\\AnotherScript.ps1", "IsSigned": false, "Disabled": true, "Platforms": ["Windows"], "Description": "Windows-only example" }
     ],
 
     "Processes": [
-      { "Path": "..\\Tools\\MyApp.exe", "Args": ["--option"], "RestartOnFailure": true, "Disabled": false }
+      { "Path": "C:\\Tools\\MyApp.exe", "Args": ["--option"], "RestartOnFailure": true, "Disabled": false }
     ]
   }
 }
 ```
 
-> **Note:** `ServiceName` and `LogDir` are optional. Defaults: `"MaksIT.UScheduler"` and `Logs` folder in app directory.
+> **Note:** `ServiceName`, `LogDir`, and `ScriptsDir` are optional. Defaults: `"MaksIT.UScheduler"`, `C:\MaksIT\Logs`, and `C:\MaksIT\Scripts`.
 
 ### Path Resolution
 
@@ -262,11 +293,10 @@ Paths can be either absolute or relative:
 
 | Path Type | Example | Resolved To |
 |-----------|---------|-------------|
-| Absolute | `C:\Scripts\backup.ps1` | `C:\Scripts\backup.ps1` |
-| Relative | `../Scripts/backup.ps1` | `{AppDirectory}\..\Scripts\backup.ps1` |
-| Relative | `scripts/backup.ps1` | `{AppDirectory}\scripts\backup.ps1` |
+| Absolute | `C:\MaksIT\Scripts\backup.ps1` | `C:\MaksIT\Scripts\backup.ps1` |
+| Relative | `File-Sync\file-sync.ps1` | `{ScriptsDir}\File-Sync\file-sync.ps1` (`C:\MaksIT\Scripts` by default) |
 
-Relative paths are resolved against the application's base directory (where `MaksIT.UScheduler.exe` is located).
+Relative **script** paths are resolved against `ScriptsDir`. Relative **process** paths are still resolved against the worker's install directory.
 
 ### Log Levels
 
@@ -287,6 +317,9 @@ The `"Default": "Information"` setting controls the minimum severity of messages
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `Path` | string | required | Path to `.ps1` file (absolute or relative) |
+| `Name` | string | optional | Display name in the UI |
+| `Description` | string | optional | Short text under the name in the script list |
+| `Platforms` | string[] | empty (all) | `Windows` and/or `Linux`. Empty = both. The worker skips scripts that do not match the host; the list grays them out. |
 | `IsSigned` | bool | `true` | `true` enforces AllSigned, `false` runs unrestricted |
 | `Disabled` | bool | `false` | `true` skips this script during execution |
 
@@ -405,7 +438,7 @@ Invoke-ScheduledExecution -Config $Config -Automated:$Automated -CurrentDateTime
 1. Copy template
 2. Modify `$Config`
 3. Implement `Start-BusinessLogic`
-4. Add script to `appsettings.json`
+4. Add script to `%ProgramData%\MaksIT\UScheduler\settings.json` (or use the UI)
 
 That’s it — the full scheduling engine is reused automatically.
 
@@ -423,7 +456,7 @@ That’s it — the full scheduling engine is reused automatically.
 ## Logging
 
 * **Console logging** — standard output
-* **File logging** — written to `LogDir` (default: `Logs` folder in app directory)
+* **File logging** — written to `LogDir` (default: `C:\MaksIT\Logs`)
 * **Windows EventLog** — events logged to Application log under `MaksIT.UScheduler` source
 * All events (start, stop, crash, restart, error, skip) are logged
 
@@ -453,19 +486,21 @@ dotnet test src/MaksIT.UScheduler.Tests --verbosity normal
 
 ### Code Coverage
 
-Coverage badges under `assets/badges/` are generated by the test engine (`CoverageBadges` plugin). After changing tests or coverage, rerun:
+Coverage badges in `README.md` are rewritten by the test engine (`CoverageBadges` with `badgeFormat: shields`). After changing tests or coverage, rerun:
 
 ```powershell
 .\utils\Invoke-TestEngine.bat
 ```
 
-Commit updated SVG files under `assets/badges/` with the test or release work.
+Commit the updated README shields.io badge URLs with the test or release work.
 
 ### Test Structure
 
 | Test Class | Coverage |
 |------------|----------|
 | `ConfigurationTests` | Configuration POCOs and default values |
+| `ConfigurationFileServiceTests` | Shared ProgramData settings.json seed/copy/save |
+| `HostDataDirectoriesTests` | Seed script copy skips existing folders and files |
 | `ProcessBackgroundServiceTests` | Process execution lifecycle and error handling |
 | `PSScriptBackgroundServiceTests` | PowerShell script execution and signature validation |
 

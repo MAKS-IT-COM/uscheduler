@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
-using MaksIT.UScheduler.Services;
 using MaksIT.UScheduler.Shared;
+using MaksIT.UScheduler.Services;
 
 
 namespace MaksIT.UScheduler.BackgroundServices;
@@ -49,7 +49,7 @@ public sealed class ProcessBackgroundService : BackgroundService {
 
         // Launch all enabled processes in parallel
         var processTasks = processes
-          .Where(process => !process.Disabled && !string.IsNullOrEmpty(process.Path))
+          .Where(process => !process.Disabled && !string.IsNullOrEmpty(process.Path) && HostPlatforms.IsCompatible(process.Platforms))
           .Select(process => {
             var argsString = process.Args != null ? string.Join(", ", process.Args) : "";
             _logger.LogInformation($"Launching process {process.Path} with arguments {argsString}");

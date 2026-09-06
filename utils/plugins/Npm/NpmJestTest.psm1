@@ -58,20 +58,12 @@ function Invoke-Plugin {
         throw "Tests failed. $($testResult.Error)"
     }
 
-    $sharedSettings | Add-Member -NotePropertyName npmWorkspaceRoot -NotePropertyValue $workspaceRoot -Force
-    $sharedSettings | Add-Member -NotePropertyName testResult -NotePropertyValue $testResult -Force
-    $sharedSettings | Add-Member -NotePropertyName qualityLineCoverage -NotePropertyValue $testResult.LineRate -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageLineRate -NotePropertyValue $testResult.LineRate -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageBranchRate -NotePropertyValue $testResult.BranchRate -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageMethodRate -NotePropertyValue $testResult.MethodRate -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageTotalMethods -NotePropertyValue $testResult.TotalMethods -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageCoveredMethods -NotePropertyValue $testResult.CoveredMethods -Force
-
-    if (($testResult.PSObject.Properties.Name -contains 'ResultsDirectory') -and $testResult.ResultsDirectory) {
-        $sharedSettings | Add-Member -NotePropertyName testResultsDirectory -NotePropertyValue $testResult.ResultsDirectory -Force
-    }
+    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Set-EngineFact"
+    Import-PluginDependency -ModuleName "TestRunner" -RequiredCommand "Publish-CoverageMetricsToSharedContext"
+    Set-EngineFact -Context $sharedSettings -Namespace 'npm' -Name 'workspaceRoot' -Value $workspaceRoot -Overwrite Replace -LegacyProperty 'npmWorkspaceRoot'
+    Publish-CoverageMetricsToSharedContext -SharedSettings $sharedSettings -TestResult $testResult
     if (($testResult.PSObject.Properties.Name -contains 'CoverageSummaryFile') -and $testResult.CoverageSummaryFile) {
-        $sharedSettings | Add-Member -NotePropertyName coverageSummaryFile -NotePropertyValue $testResult.CoverageSummaryFile -Force
+        Set-EngineFact -Context $sharedSettings -Namespace 'test' -Name 'coverageSummaryFile' -Value $testResult.CoverageSummaryFile -Overwrite Replace -LegacyProperty 'coverageSummaryFile'
     }
 
     Write-Log -Level "OK" -Message "  All tests passed!"

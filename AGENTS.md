@@ -7,3 +7,5 @@
 | local-ollama | [SKILL.md](E:\Users\maksym\source\repos\private\homelab\ai\skills\local-ollama\SKILL.md) |
 
 Manifest: `.cursor/maksit-skills.json`.
+
+**Contributors:** pick the skill that matches the task; **source code** and **repo-root `.editorconfig`** are authoritative.
