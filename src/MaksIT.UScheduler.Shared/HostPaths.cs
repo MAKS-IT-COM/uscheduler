@@ -141,6 +141,10 @@ public static class HostPaths {
   }
 
   private static bool LooksLikeScriptsRoot(string path) =>
-    Directory.Exists(Path.Combine(path, "File-Sync"))
-    || File.Exists(Path.Combine(path, "SchedulerTemplate.psm1"));
+    Directory.Exists(path)
+    && (Directory.Exists(Path.Combine(path, "File-Sync"))
+      || Directory.Exists(Path.Combine(path, "Native-Sync"))
+      || Directory.Exists(Path.Combine(path, "HyperV-Backup"))
+      || Directory.Exists(Path.Combine(path, "Windows-Update"))
+      || File.Exists(Path.Combine(path, "SchedulerTemplate.psm1")));
 }

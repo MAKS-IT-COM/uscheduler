@@ -9,7 +9,7 @@
     Does not publish. Copies src/Scripts into each MaksIT.UScheduler RID output,
     rewrites worker seed appsettings for the bundled layout, and
     writes Windows/Linux launchers. The portable zip is the win-x64 bundle folder
-    (unique names). A flat installer payload (worker + UI) is staged for WiX.
+    A flat installer payload (worker + UI + Scripts) is staged for WiX.
 #>
 
 if (-not (Get-Command Import-PluginDependency -ErrorAction SilentlyContinue)) {
@@ -254,7 +254,7 @@ exec "$DIR/MaksIT.UScheduler.UI/MaksIT.UScheduler.UI" "$@"
         Join-Path $sharedSettings.artifactsDirectory "installer-payload"
     }
 
-    Write-Log -Level "STEP" -Message "Preparing per-machine installer payload (worker + UI)..."
+    Write-Log -Level "STEP" -Message "Preparing per-machine installer payload (worker + UI + Scripts)..."
     if (Test-Path $installerPayload) {
         Remove-Item -Path $installerPayload -Recurse -Force
     }
@@ -262,7 +262,13 @@ exec "$DIR/MaksIT.UScheduler.UI/MaksIT.UScheduler.UI" "$@"
     New-Item -ItemType Directory -Path $installerPayload | Out-Null
     Copy-Item -Path (Join-Path ([string]$uiWin.directory) '*') -Destination $installerPayload -Recurse -Force
     Copy-Item -Path (Join-Path ([string]$workerWin.directory) '*') -Destination $installerPayload -Recurse -Force
+    $payloadScripts = Join-Path $installerPayload "Scripts"
+    if (Test-Path -LiteralPath $payloadScripts) {
+        Remove-Item -LiteralPath $payloadScripts -Recurse -Force
+    }
+    Copy-Item -Path $scriptsSourcePath -Destination $payloadScripts -Recurse
     Write-Log -Level "OK" -Message "  Installer payload: $installerPayload"
+    Write-Log -Level "OK" -Message "  Installer Scripts: $payloadScripts"
 
     Set-EngineFact -Context $sharedSettings -Namespace 'release' -Name 'archiveInputs' -Value @($bundleDirectory) -Overwrite Replace -LegacyProperty 'releaseArchiveInputs'
     Set-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'publishOutputs' -Value @() -Overwrite Replace

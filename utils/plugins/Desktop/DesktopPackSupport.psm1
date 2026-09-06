@@ -283,7 +283,13 @@ function New-WixPackageXml {
         [string]$Architecture = 'x64',
 
         [Parameter(Mandatory = $false)]
-        [string]$IconPath
+        [string]$IconPath,
+
+        [Parameter(Mandatory = $false)]
+        [string]$PostInstallFileName,
+
+        [Parameter(Mandatory = $false)]
+        [string]$PostInstallArguments
     )
 
     $ns = 'http://wixtoolset.org/schemas/v4/wxs'
@@ -371,6 +377,7 @@ function New-WixPackageXml {
         '' = $installFolder
     }
     $componentIds = [System.Collections.Generic.List[string]]::new()
+    $postInstallFileId = $null
 
     $publishRoot = [System.IO.Path]::GetFullPath($PublishDirectory)
     $files = @(Get-ChildItem -LiteralPath $publishRoot -Recurse -File)
@@ -415,6 +422,12 @@ function New-WixPackageXml {
         $null = $fileNode.SetAttribute('KeyPath', 'yes')
         $null = $component.AppendChild($fileNode)
         $null = $parent.AppendChild($component)
+
+        if (-not [string]::IsNullOrWhiteSpace($PostInstallFileName) `
+                -and [string]::IsNullOrWhiteSpace($relativeDir) `
+                -and [string]::Equals($file.Name, $PostInstallFileName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $postInstallFileId = $fileNode.GetAttribute('Id')
+        }
     }
 
     $exeName = [System.IO.Path]::GetFileName($ExecutablePath)
@@ -488,6 +501,34 @@ function New-WixPackageXml {
     }
 
     $null = $package.AppendChild($feature)
+
+    if (-not [string]::IsNullOrWhiteSpace($PostInstallFileName)) {
+        if ([string]::IsNullOrWhiteSpace($postInstallFileId)) {
+            throw "WindowsInstaller postInstallExecutableName '$PostInstallFileName' was not harvested from $publishRoot."
+        }
+
+        if ([string]::IsNullOrWhiteSpace($PostInstallArguments)) {
+            throw "WindowsInstaller postInstallArguments is required when postInstallExecutableName is set."
+        }
+
+        $ca = $xml.CreateElement('CustomAction', $ns)
+        $null = $ca.SetAttribute('Id', 'PostInstallPrepareData')
+        $null = $ca.SetAttribute('FileRef', $postInstallFileId)
+        $arguments = if ($null -eq $PostInstallArguments) { '' } else { $PostInstallArguments }
+        $null = $ca.SetAttribute('ExeCommand', $arguments)
+        $null = $ca.SetAttribute('Execute', 'deferred')
+        $null = $ca.SetAttribute('Impersonate', 'no')
+        $null = $ca.SetAttribute('Return', 'check')
+        $null = $package.AppendChild($ca)
+
+        $seq = $xml.CreateElement('InstallExecuteSequence', $ns)
+        $custom = $xml.CreateElement('Custom', $ns)
+        $null = $custom.SetAttribute('Action', 'PostInstallPrepareData')
+        $null = $custom.SetAttribute('After', 'InstallFiles')
+        $null = $custom.SetAttribute('Condition', 'NOT REMOVE')
+        $null = $seq.AppendChild($custom)
+        $null = $package.AppendChild($seq)
+    }
 
     return $xml
 }
