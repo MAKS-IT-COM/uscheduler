@@ -1,5 +1,6 @@
-using MaksIT.UScheduler.Shared;
 using Xunit;
+using MaksIT.UScheduler.Shared;
+
 
 namespace MaksIT.UScheduler.Tests;
 
@@ -17,10 +18,24 @@ public class ConfigurationTests {
     // Assert
     Assert.Equal("MaksIT.UScheduler", config.ServiceName);
     Assert.Equal(TestLogDir, config.LogDir);
+    Assert.Equal(HostPaths.DefaultScriptsDirectory, config.ScriptsDir);
     Assert.NotNull(config.Powershell);
     Assert.Empty(config.Powershell);
     Assert.NotNull(config.Processes);
     Assert.Empty(config.Processes);
+  }
+
+  [Fact]
+  public void Configuration_EnsureDefaults_FillsHostPaths() {
+    var config = new Configuration {
+      LogDir = "",
+      ScriptsDir = ""
+    };
+
+    config.EnsureDefaults();
+
+    Assert.Equal(HostPaths.DefaultLogDirectory, config.LogDir);
+    Assert.Equal(HostPaths.DefaultScriptsDirectory, config.ScriptsDir);
   }
 
   [Fact]
@@ -65,7 +80,7 @@ public class ConfigurationTests {
   public void Configuration_CanAddProcesses() {
     // Arrange
     var config = new Configuration { LogDir = TestLogDir };
-    var process = new ProcessConfiguration { 
+    var process = new ProcessConfiguration {
       Path = @"C:\App\app.exe",
       Args = ["--verbose", "--output", "log.txt"]
     };
@@ -87,7 +102,9 @@ public class ConfigurationTests {
     // Assert
     Assert.Equal(@"C:\test.ps1", script.Path);
     Assert.True(script.IsSigned);  // Default should be true
-    Assert.False(script.Disabled); // Default should be false
+    Assert.False(script.Disabled);
+    Assert.Empty(script.Platforms);
+    Assert.Null(script.Description);
   }
 
   [Fact]

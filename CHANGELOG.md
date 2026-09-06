@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.1.0] - 2026-09-06
+
+### Added
+
+- **Avalonia UScheduler UI** on Windows and Linux (replaces WPF Schedule Manager).
+- **Linux systemd** install/start/stop for the worker (`Type=notify`), matching Windows SCM.
+- `--prepare-data` creates scripts, logs, and shared-settings folders (and ACLs) without registering the service.
+- Community desktop GitHub assets: portable `maksit-uscheduler-{version}.zip` (win-x64 worker, UI, Scripts), Windows setup exe, and Flatpak of the UI.
+- Script list shows a description and platform (`Windows` / `Linux`). Incompatible scripts stay in the list but are grayed out; the worker does not run them. Bundled Hyper-V Backup, Windows Update, and File Sync are Windows-only.
+
+### Changed
+
+- **Schedule Manager** is now **MaksIT.UScheduler.UI**. The UI launches without elevation; register/start/stop/unregister prompt for UAC (or pkexec) in place.
+- Worker and UI install to `C:\Program Files\MaksIT\UScheduler` (Linux: `/opt/maksit/uscheduler`). Scripts live in `C:\MaksIT\Scripts` (`/var/lib/maksit/scripts`) and logs in `C:\MaksIT\Logs` (`/var/log/maksit`), with Users/group write after `--install` / `--prepare-data`. Bundled examples are copied only when the destination file or script folder does not already exist; existing customizations are left unchanged.
+- Schedule configuration is stored in `%ProgramData%\MaksIT\UScheduler\settings.json` (Linux: `/var/lib/maksit/uscheduler/settings.json`). Shipped `appsettings.json` next to the worker keeps host logging and a first-run Configuration seed. Per-user UI prefs stay in `%AppData%\MaksIT\UScheduler\settings.json`.
+- UI dark theme uses the MAKS.IT origami blues (`#33A5CF` / `#006199`). App icon is a faceted scheduler clock (not the brand M).
+- Worker is no longer Windows-only: no `win-x64` RID lock; Event Log logging stays Windows-only.
+- `sc.exe create` uses `binPath= ` / `start= auto` (space after `=`).
+- **Tests:** migrate to **xunit.v3** **4.0** + **Microsoft Testing Platform** (`src/global.json` `test.runner`; **coverlet.MTP**). README coverage badges are shields.io URLs.
+- Synced RepoUtils to the Community desktop profile (local-copy only; no `Update-RepoUtils`).
+
+### Removed
+
+- WPF **MaksIT.UScheduler.ScheduleManager** project.
+- SVG coverage badges under `assets/badges/`.
+
 ## [1.0.3] - 2026-06-28
 
 ### Added
@@ -112,3 +140,4 @@ Template for new releases:
 ### Security
 - Security improvements
 -->
+

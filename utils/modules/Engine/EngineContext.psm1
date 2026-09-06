@@ -3,12 +3,14 @@
 
 <#
 .SYNOPSIS
-    Helpers to resolve engine semver and relative paths from plugin configuration.
+    Generic engine helpers: path resolution and the shared context facts API.
 
 .DESCRIPTION
-    Used by New-EngineContext and version plugins:
-    - DotNetReleaseVersion plugin -> projectFiles (.csproj <Version>)
-    - NpmReleaseVersion plugin -> packageJsonPath (package.json version)
+    Engine-owned state stays on the context object (version, tag, skipPublishPlugins, …).
+    Plugin-published values go under $context.facts[namespace][name] via Set/Get/Test-EngineFact.
+    During migration, -LegacyProperty on Set dual-writes flat properties; Get falls back to them.
+
+    Version plugins declare providesVersion = $true; New-EngineContext discovers the single enabled one.
 #>
 
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) {
@@ -17,6 +19,16 @@ if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) {
         Import-Module $loggingModulePath -Force
     }
 }
+
+$script:EngineStateAllowlist = @(
+    'version'
+    'tag'
+    'skipPublishPlugins'
+    'releaseDir'
+    'artifactsDirectory'
+    'deployMode'
+    'orchestrator'
+)
 
 function Resolve-RelativePaths {
     param(
@@ -51,175 +63,302 @@ function Resolve-RelativePaths {
     return @($resolved)
 }
 
-function Get-CsprojPropertyValue {
+function Initialize-EngineFactsBag {
     param(
         [Parameter(Mandatory = $true)]
-        [xml]$Csproj,
-
-        [Parameter(Mandatory = $true)]
-        [string]$PropertyName
+        [psobject]$Context
     )
 
-    # SDK-style .csproj files can have multiple PropertyGroup nodes.
-    # Use the first group that defines the requested property.
-    $propNode = $Csproj.Project.PropertyGroup |
-        Where-Object { $_.$PropertyName } |
-        Select-Object -First 1
+    if (-not ($Context.PSObject.Properties.Name -contains 'facts') -or $null -eq $Context.facts) {
+        $Context | Add-Member -NotePropertyName facts -NotePropertyValue ([ordered]@{}) -Force
+    }
+}
 
-    if ($propNode) {
-        return $propNode.$PropertyName
+function Assert-EngineFactNamespace {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Namespace
+    )
+
+    if ($Namespace -eq 'engine') {
+        throw "Namespace 'engine' is reserved; use Set-EngineState / Get-EngineState for engine-owned fields."
+    }
+
+    if ($Namespace -cnotmatch '^[a-z][a-z0-9]*$') {
+        throw "Invalid facts namespace '$Namespace'. Use lowercase alphanumeric starting with a letter (e.g. 'test', 'dotnet')."
+    }
+}
+
+function Assert-EngineFactName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($Name -cnotmatch '^[a-zA-Z][a-zA-Z0-9_]*$') {
+        throw "Invalid fact name '$Name'. Use letters, digits, underscore; must start with a letter."
+    }
+}
+
+function Test-EngineFactValuePresent {
+    param(
+        [AllowNull()]
+        $Value
+    )
+
+    if ($null -eq $Value) {
+        return $false
+    }
+
+    if ($Value -is [string] -and [string]::IsNullOrWhiteSpace($Value)) {
+        return $false
+    }
+
+    return $true
+}
+
+function Set-EngineFact {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Namespace,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        $Value,
+
+        [ValidateSet('Error', 'Replace', 'Keep')]
+        [string]$Overwrite = 'Error',
+
+        [Parameter(Mandatory = $false)]
+        [string]$LegacyProperty
+    )
+
+    Assert-EngineFactNamespace -Namespace $Namespace
+    Assert-EngineFactName -Name $Name
+    Initialize-EngineFactsBag -Context $Context
+
+    if (-not $Context.facts.Contains($Namespace)) {
+        $Context.facts[$Namespace] = [ordered]@{}
+    }
+
+    $bag = $Context.facts[$Namespace]
+    $exists = $bag.Contains($Name)
+    if ($exists) {
+        if ($Overwrite -eq 'Keep') {
+            if (-not [string]::IsNullOrWhiteSpace($LegacyProperty) -and -not ($Context.PSObject.Properties.Name -contains $LegacyProperty)) {
+                $Context | Add-Member -NotePropertyName $LegacyProperty -NotePropertyValue $bag[$Name] -Force
+            }
+            return
+        }
+
+        if ($Overwrite -eq 'Error') {
+            throw "Fact ${Namespace}.${Name} already set (use -Overwrite Replace or Keep)."
+        }
+    }
+
+    $bag[$Name] = $Value
+
+    if (-not [string]::IsNullOrWhiteSpace($LegacyProperty)) {
+        $Context | Add-Member -NotePropertyName $LegacyProperty -NotePropertyValue $Value -Force
+    }
+}
+
+function Get-EngineFact {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Namespace,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $false)]
+        $Default,
+
+        [switch]$Required,
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$LegacyProperty
+    )
+
+    Assert-EngineFactNamespace -Namespace $Namespace
+    Assert-EngineFactName -Name $Name
+    Initialize-EngineFactsBag -Context $Context
+
+    if ($Context.facts.Contains($Namespace) -and $Context.facts[$Namespace].Contains($Name)) {
+        $value = $Context.facts[$Namespace][$Name]
+        if (Test-EngineFactValuePresent -Value $value) {
+            return $value
+        }
+    }
+
+    foreach ($propertyName in @($LegacyProperty)) {
+        if ([string]::IsNullOrWhiteSpace($propertyName)) {
+            continue
+        }
+
+        if ($Context.PSObject.Properties.Name -contains $propertyName) {
+            $legacyValue = $Context.$propertyName
+            if (Test-EngineFactValuePresent -Value $legacyValue) {
+                return $legacyValue
+            }
+        }
+    }
+
+    if ($Required) {
+        throw "Required fact ${Namespace}.${Name} is missing."
+    }
+
+    if ($PSBoundParameters.ContainsKey('Default')) {
+        return $Default
     }
 
     return $null
 }
 
-function Get-CsprojVersions {
+function Test-EngineFact {
     param(
         [Parameter(Mandatory = $true)]
-        [string[]]$ProjectFiles
+        [psobject]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Namespace,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$LegacyProperty
     )
 
-    Write-Log -Level "INFO" -Message "Reading version(s) from SDK-style project files (projectFiles)..."
-    $projectVersions = @{}
+    $value = Get-EngineFact -Context $Context -Namespace $Namespace -Name $Name -LegacyProperty $LegacyProperty
+    return (Test-EngineFactValuePresent -Value $value)
+}
 
-    foreach ($projectPath in $ProjectFiles) {
-        if (-not (Test-Path $projectPath -PathType Leaf)) {
-            Write-Error "Project file not found at: $projectPath"
-            exit 1
+function Set-EngineState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        $Value
+    )
+
+    if ($script:EngineStateAllowlist -notcontains $Name) {
+        throw "Engine state key '$Name' is not allowlisted. Use Set-EngineFact for plugin outputs, or extend the engine allowlist for documented engine fields."
+    }
+
+    $Context | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
+}
+
+function Add-EnginePublishCompletion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Publisher
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Publisher)) {
+        throw "Publisher name is required."
+    }
+
+    $completedBy = @(Get-EngineFact -Context $Context -Namespace 'publish' -Name 'completedBy' -Default @())
+    if ($completedBy -notcontains $Publisher) {
+        $completedBy += $Publisher
+    }
+
+    Set-EngineFact -Context $Context -Namespace 'publish' -Name 'completedBy' -Value $completedBy -Overwrite Replace
+    Set-EngineFact -Context $Context -Namespace 'publish' -Name 'completed' -Value $true -Overwrite Replace -LegacyProperty 'publishCompleted'
+}
+
+function Get-EngineState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $false)]
+        $Default,
+
+        [switch]$Required
+    )
+
+    if ($script:EngineStateAllowlist -notcontains $Name) {
+        throw "Engine state key '$Name' is not allowlisted."
+    }
+
+    if ($Context.PSObject.Properties.Name -contains $Name) {
+        $value = $Context.$Name
+        if (Test-EngineFactValuePresent -Value $value) {
+            return $value
+        }
+    }
+
+    if ($Required) {
+        throw "Required engine state '$Name' is missing."
+    }
+
+    if ($PSBoundParameters.ContainsKey('Default')) {
+        return $Default
+    }
+
+    return $null
+}
+
+function Add-ReleaseAssetPaths {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$Path
+    )
+
+    $list = [System.Collections.Generic.List[string]]::new()
+    $existing = Get-EngineFact -Context $Context -Namespace 'release' -Name 'assetPaths' -Default @() -LegacyProperty @('releaseAssetPaths')
+    foreach ($item in @($existing)) {
+        $value = [string]$item
+        if (-not [string]::IsNullOrWhiteSpace($value) -and -not $list.Contains($value)) {
+            $list.Add($value)
+        }
+    }
+
+    foreach ($item in @($Path)) {
+        $value = [string]$item
+        if ([string]::IsNullOrWhiteSpace($value) -or $list.Contains($value)) {
+            continue
         }
 
-        if ([System.IO.Path]::GetExtension($projectPath) -ne ".csproj") {
-            Write-Error "Configured project file is not a .csproj file: $projectPath"
-            exit 1
-        }
-
-        [xml]$csproj = Get-Content $projectPath
-        $version = Get-CsprojPropertyValue -Csproj $csproj -PropertyName "Version"
-
-        if (-not $version) {
-            Write-Error "Version not found in $projectPath"
-            exit 1
-        }
-
-        $projectVersions[$projectPath] = $version
-        Write-Log -Level "OK" -Message "  $([System.IO.Path]::GetFileName($projectPath)): $version"
+        $list.Add($value)
     }
 
-    return $projectVersions
+    Set-EngineFact -Context $Context -Namespace 'release' -Name 'assetPaths' -Value @($list) -Overwrite Replace -LegacyProperty 'releaseAssetPaths'
 }
 
-function Resolve-DotNetReleaseVersion {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object[]]$Plugins,
-
-        [Parameter(Mandatory = $true)]
-        [string]$ScriptDir
-    )
-
-    $releaseVersionPlugin = @($Plugins | Where-Object { $_.name -eq 'DotNetReleaseVersion' } | Select-Object -First 1)
-    if ($releaseVersionPlugin.Count -eq 0 -or $null -eq $releaseVersionPlugin[0]) {
-        Write-Error "Configure a DotNetReleaseVersion plugin in scriptSettings.json with projectFiles."
-        exit 1
-    }
-
-    $releaseVersionSettings = $releaseVersionPlugin[0]
-    $projectFiles = @(Resolve-RelativePaths -Value $releaseVersionSettings.projectFiles -BasePath $ScriptDir)
-
-    if ($projectFiles.Count -eq 0) {
-        Write-Error "Configure release version via DotNetReleaseVersion.projectFiles (first .csproj with <Version>)."
-        exit 1
-    }
-
-    $projectVersions = Get-CsprojVersions -ProjectFiles $projectFiles
-    $version = $projectVersions[$projectFiles[0]]
-
-    return [pscustomobject]@{
-        version = $version
-        source = 'DotNetReleaseVersion'
-    }
-}
-
-function Resolve-NpmReleaseVersion {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object[]]$Plugins,
-
-        [Parameter(Mandatory = $true)]
-        [string]$ScriptDir
-    )
-
-    $releaseVersionPlugin = @($Plugins | Where-Object { $_.name -eq 'NpmReleaseVersion' } | Select-Object -First 1)
-    if ($releaseVersionPlugin.Count -eq 0 -or $null -eq $releaseVersionPlugin[0]) {
-        Write-Error "Configure an NpmReleaseVersion plugin in scriptSettings.json with packageJsonPath."
-        exit 1
-    }
-
-    $releaseVersionSettings = $releaseVersionPlugin[0]
-    $packageJsonPaths = @(Resolve-RelativePaths -Value $releaseVersionSettings.packageJsonPath -BasePath $ScriptDir)
-
-    if ($packageJsonPaths.Count -eq 0) {
-        Write-Error "Configure release version via NpmReleaseVersion.packageJsonPath."
-        exit 1
-    }
-
-    $packageJsonPath = $packageJsonPaths[0]
-    if (-not (Test-Path $packageJsonPath -PathType Leaf)) {
-        Write-Error "NpmReleaseVersion: package.json not found at: $packageJsonPath"
-        exit 1
-    }
-
-    Write-Log -Level "INFO" -Message "Reading version from npm package.json (packageJsonPath)..."
-    $json = Get-Content -Path $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    $version = [string]$json.version
-    if ([string]::IsNullOrWhiteSpace($version)) {
-        Write-Error "NpmReleaseVersion: 'version' is missing in '$packageJsonPath'."
-        exit 1
-    }
-
-    if ($version -notmatch '^\d+\.\d+\.\d+') {
-        Write-Error "NpmReleaseVersion: version '$version' in '$packageJsonPath' is not a valid semver."
-        exit 1
-    }
-
-    Write-Log -Level "OK" -Message "  $([System.IO.Path]::GetFileName($packageJsonPath)): $version"
-
-    return [pscustomobject]@{
-        version = $version
-        source = 'NpmReleaseVersion'
-    }
-}
-
-function Resolve-ReleaseVersion {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object[]]$Plugins,
-
-        [Parameter(Mandatory = $true)]
-        [string]$ScriptDir
-    )
-
-    $dotnetPlugin = @($Plugins | Where-Object { $_.name -eq 'DotNetReleaseVersion' -and $_.enabled -ne $false })
-    $npmPlugin = @($Plugins | Where-Object { $_.name -eq 'NpmReleaseVersion' -and $_.enabled -ne $false })
-
-    if ($dotnetPlugin.Count -gt 0 -and $npmPlugin.Count -gt 0) {
-        Write-Error "Configure only one release version plugin: DotNetReleaseVersion or NpmReleaseVersion, not both."
-        exit 1
-    }
-
-    if ($dotnetPlugin.Count -gt 0) {
-        return Resolve-DotNetReleaseVersion -Plugins $Plugins -ScriptDir $ScriptDir
-    }
-
-    if ($npmPlugin.Count -gt 0) {
-        return Resolve-NpmReleaseVersion -Plugins $Plugins -ScriptDir $ScriptDir
-    }
-
-    Write-Error "Configure a DotNetReleaseVersion plugin (projectFiles) or NpmReleaseVersion plugin (packageJsonPath) in scriptSettings.json."
-    exit 1
-}
-
-Export-ModuleMember -Function Get-CsprojPropertyValue, Get-CsprojVersions, Resolve-RelativePaths, Resolve-DotNetReleaseVersion, Resolve-NpmReleaseVersion, Resolve-ReleaseVersion
-
-
-
+Export-ModuleMember -Function `
+    Resolve-RelativePaths, `
+    Initialize-EngineFactsBag, `
+    Set-EngineFact, `
+    Get-EngineFact, `
+    Test-EngineFact, `
+    Set-EngineState, `
+    Add-EnginePublishCompletion, `
+    Add-ReleaseAssetPaths, `
+    Get-EngineState

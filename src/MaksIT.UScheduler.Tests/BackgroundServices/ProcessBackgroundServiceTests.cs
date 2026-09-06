@@ -1,11 +1,12 @@
-using MaksIT.UScheduler;
-using MaksIT.UScheduler.BackgroundServices;
-using MaksIT.UScheduler.Services;
-using MaksIT.UScheduler.Shared;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
+using MaksIT.UScheduler;
+using MaksIT.UScheduler.Shared;
+using MaksIT.UScheduler.Services;
+using MaksIT.UScheduler.BackgroundServices;
+
 
 namespace MaksIT.UScheduler.Tests.BackgroundServices;
 
@@ -36,7 +37,7 @@ public class ProcessBackgroundServiceTests {
 
     // Act - cancel immediately to stop the service
     cts.Cancel();
-    
+
     // Start the service - it should complete without errors
     await service.StartAsync(cts.Token);
 
@@ -73,7 +74,7 @@ public class ProcessBackgroundServiceTests {
     // Arrange
     var config = new Configuration {
       LogDir = ".\\Logs",
-      Processes = [ new ProcessConfiguration { Path = "" } ]
+      Processes = [new ProcessConfiguration { Path = "" }]
     };
     var service = CreateService(config);
     using var cts = new CancellationTokenSource();
@@ -120,11 +121,11 @@ public class ProcessBackgroundServiceTests {
 
     // Act - start the service then cancel after a short delay
     var executeTask = service.StartAsync(cts.Token);
-    
+
     // Give it a moment to start processing, then cancel
     await Task.Delay(100);
     cts.Cancel();
-    
+
     // Wait for the service to stop gracefully
     try {
       await service.StopAsync(CancellationToken.None);
@@ -164,7 +165,7 @@ public class ProcessBackgroundServiceTests {
     var executeTask = service.StartAsync(cts.Token);
     await Task.Delay(100);
     cts.Cancel();
-    
+
     try {
       await service.StopAsync(CancellationToken.None);
     }

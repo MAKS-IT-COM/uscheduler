@@ -1,10 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MaksIT.Results.Mvc;
 using MaksIT.Core.Logging;
 using MaksIT.Core.Webapi.Middlewares;
-using MaksIT.PSScriptGateway.Configuration;
 using MaksIT.PSScriptGateway.Services;
-using MaksIT.Results.Mvc;
+using MaksIT.PSScriptGateway.Configuration;
+
 
 var builder = WebApplication.CreateBuilder(args);
 

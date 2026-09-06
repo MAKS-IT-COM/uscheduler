@@ -1,11 +1,12 @@
-using MaksIT.UScheduler;
-using MaksIT.UScheduler.BackgroundServices;
-using MaksIT.UScheduler.Services;
-using MaksIT.UScheduler.Shared;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
+using MaksIT.UScheduler;
+using MaksIT.UScheduler.Shared;
+using MaksIT.UScheduler.Services;
+using MaksIT.UScheduler.BackgroundServices;
+
 
 namespace MaksIT.UScheduler.Tests.BackgroundServices;
 
@@ -71,7 +72,7 @@ public class PSScriptBackgroundServiceTests {
     // Arrange
     var config = new Configuration {
       LogDir = ".\\Logs",
-      Powershell = [ new PowershellScript { Path = "" } ]
+      Powershell = [new PowershellScript { Path = "" }]
     };
     var service = CreateService(config);
     using var cts = new CancellationTokenSource();
@@ -119,7 +120,7 @@ public class PSScriptBackgroundServiceTests {
     var executeTask = service.StartAsync(cts.Token);
     await Task.Delay(100);
     cts.Cancel();
-    
+
     try {
       await service.StopAsync(CancellationToken.None);
     }
@@ -153,7 +154,7 @@ public class PSScriptBackgroundServiceTests {
     var executeTask = service.StartAsync(cts.Token);
     await Task.Delay(100);
     cts.Cancel();
-    
+
     try {
       await service.StopAsync(CancellationToken.None);
     }
@@ -189,7 +190,7 @@ public class PSScriptBackgroundServiceTests {
     var executeTask = service.StartAsync(cts.Token);
     await Task.Delay(100);
     cts.Cancel();
-    
+
     try {
       await service.StopAsync(CancellationToken.None);
     }
@@ -207,5 +208,29 @@ public class PSScriptBackgroundServiceTests {
     _psScriptServiceMock.Verify(
       x => x.RunScriptAsync(@"C:\Scripts\script3.ps1", It.IsAny<bool>(), It.IsAny<CancellationToken>()),
       Times.AtLeastOnce);
+  }
+
+  [Fact]
+  public async Task ExecuteAsync_WithIncompatiblePlatform_DoesNotRunScript() {
+    var otherHost = OperatingSystem.IsWindows() ? "Linux" : "Windows";
+    var config = new Configuration {
+      LogDir = ".\\Logs",
+      Powershell = [
+        new PowershellScript {
+          Path = @"C:\Scripts\test.ps1",
+          Disabled = false,
+          Platforms = [otherHost]
+        }
+      ]
+    };
+    var service = CreateService(config);
+    using var cts = new CancellationTokenSource();
+
+    cts.Cancel();
+    await service.StartAsync(cts.Token);
+
+    _psScriptServiceMock.Verify(
+      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      Times.Never);
   }
 }

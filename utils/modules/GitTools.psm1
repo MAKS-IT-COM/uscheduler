@@ -51,7 +51,33 @@ function Invoke-GitInternal {
         [string]$ErrorMessage = "Git command failed"
     )
 
+    if (-not (Get-Command Invoke-ExternalCommand -ErrorAction SilentlyContinue)) {
+        $srcDir = Split-Path $PSScriptRoot -Parent
+        $externalModule = Join-Path $PSScriptRoot 'ExternalCommandSupport.psm1'
+        if (Test-Path -LiteralPath $externalModule -PathType Leaf) {
+            Import-Module $externalModule -Global
+        }
+        elseif (Test-Path -LiteralPath (Join-Path $srcDir 'modules' 'ExternalCommandSupport.psm1') -PathType Leaf) {
+            Import-Module (Join-Path $srcDir 'modules' 'ExternalCommandSupport.psm1') -Global
+        }
+    }
+
     if ($CaptureOutput) {
+        if (Get-Command Invoke-ExternalCommand -ErrorAction SilentlyContinue) {
+            $output = Invoke-ExternalCommand -Name git -ArgumentList $Arguments -MergeErrorOutput -ThrowOnError:$false
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -ne 0) {
+                Write-Error "$ErrorMessage (exit code: $exitCode)"
+                exit 1
+            }
+
+            if ($null -eq $output) {
+                return ""
+            }
+
+            return ($output -join "`n").Trim()
+        }
+
         $output = & git @Arguments 2>&1
         $exitCode = $LASTEXITCODE
         if ($exitCode -ne 0) {
@@ -66,7 +92,13 @@ function Invoke-GitInternal {
         return ($output -join "`n").Trim()
     }
 
-    & git @Arguments
+    if (Get-Command Invoke-ExternalCommand -ErrorAction SilentlyContinue) {
+        Invoke-ExternalCommand -Name git -ArgumentList $Arguments -MergeErrorOutput -ThrowOnError:$false | Out-Null
+    }
+    else {
+        & git @Arguments
+    }
+
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         Write-Error "$ErrorMessage (exit code: $exitCode)"

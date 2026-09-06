@@ -1,0 +1,349 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+        xmlns:controls="using:MaksIT.UScheduler.UI.Controls"
+        xmlns:shared="using:MaksIT.UScheduler.Shared"
+        xmlns:local="using:MaksIT.UScheduler.UI"
+        x:Class="MaksIT.UScheduler.UI.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="MaksIT UScheduler"
+        Icon="/Assets/icon.ico"
+        Width="1100"
+        Height="800"
+        MinWidth="900"
+        MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.Resources>
+    <local:NamedColorBrushConverter x:Key="NamedColorBrush" />
+  </Window.Resources>
+
+  <TabControl>
+    <TabItem Header="Main">
+      <TabControl>
+        <TabItem Header="Scripts Management">
+          <Grid ColumnDefinitions="280,*">
+            <controls:GroupBox Header="Scripts">
+              <Grid RowDefinitions="*,Auto">
+                <ListBox ItemsSource="{Binding Scripts}"
+                         SelectedItem="{Binding SelectedScript}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Margin="0,4" Opacity="{Binding ListOpacity}">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ListDescription}"
+                                   Classes="hint"
+                                   Margin="0,2,0,0"
+                                   TextWrapping="Wrap" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <Button Grid.Row="1"
+                        Content="Refresh"
+                        Command="{Binding RefreshScriptsCommand}"
+                        HorizontalAlignment="Stretch"
+                        Margin="0,8,0,0" />
+              </Grid>
+            </controls:GroupBox>
+
+            <Grid Grid.Column="1" RowDefinitions="Auto,*">
+              <controls:GroupBox Header="Script Status"
+                                 IsVisible="{Binding HasSelectedScript}">
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Last Run:" FontWeight="Bold" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding CurrentScriptStatus.LastRunDisplay, FallbackValue=Never}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,16,0" />
+                    <TextBlock Text="Status:" FontWeight="Bold" VerticalAlignment="Center" />
+                    <Ellipse Width="10"
+                             Height="10"
+                             VerticalAlignment="Center"
+                             Fill="{Binding LockStatusColor, Converter={StaticResource NamedColorBrush}}" />
+                    <TextBlock Text="{Binding CurrentScriptStatus.StatusDisplay, FallbackValue=Ready}"
+                               VerticalAlignment="Center" />
+                  </StackPanel>
+
+                  <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="Remove Lock"
+                            Command="{Binding RemoveLockFileCommand}"
+                            IsVisible="{Binding HasLockFile}" />
+                    <Button Content="Refresh Status"
+                            Command="{Binding RefreshScriptStatusCommand}" />
+                    <Button Content="Launch"
+                            Command="{Binding LaunchScriptCommand}"
+                            ToolTip.Tip="Run the script from its folder (.bat / .sh / pwsh)" />
+                  </StackPanel>
+
+                  <StackPanel Grid.Row="1"
+                              Grid.ColumnSpan="2"
+                              Orientation="Horizontal"
+                              Margin="0,8,0,0"
+                              Spacing="8">
+                    <TextBlock Text="Name:" VerticalAlignment="Center" FontWeight="Bold" />
+                    <TextBox Text="{Binding ScriptName}"
+                             MinWidth="180"
+                             VerticalAlignment="Center"
+                             PlaceholderText="Display name" />
+                    <CheckBox Content="Require signed script"
+                              IsChecked="{Binding ScriptIsSigned}"
+                              Margin="12,0,0,0" />
+                    <CheckBox Content="Disabled"
+                              IsChecked="{Binding ScriptDisabled}"
+                              Margin="12,0,0,0" />
+                  </StackPanel>
+                </Grid>
+              </controls:GroupBox>
+
+              <controls:GroupBox Grid.Row="1" Header="Schedule Settings">
+                <Grid IsVisible="{Binding HasSelectedScript}"
+                      RowDefinitions="Auto,Auto,Auto,*,Auto">
+                  <controls:GroupBox Header="Months (empty = all months)">
+                    <ItemsControl ItemsSource="{Binding MonthOptions}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <CheckBox Content="{Binding Name}"
+                                    IsChecked="{Binding IsChecked}"
+                                    Margin="4,2" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </controls:GroupBox>
+
+                  <controls:GroupBox Grid.Row="1" Header="Weekdays (empty = all days)">
+                    <ItemsControl ItemsSource="{Binding WeekdayOptions}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <CheckBox Content="{Binding Name}"
+                                    IsChecked="{Binding IsChecked}"
+                                    Margin="4,2" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </controls:GroupBox>
+
+                  <controls:GroupBox Grid.Row="2" Header="Run Times (UTC)">
+                    <Grid RowDefinitions="Auto,80">
+                      <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBox Text="{Binding NewRunTime}"
+                                 Width="80"
+                                 VerticalAlignment="Center" />
+                        <Button Content="Add" Command="{Binding AddRunTimeCommand}" MinWidth="60" />
+                        <Button Content="Remove" Command="{Binding RemoveRunTimeCommand}" MinWidth="60" />
+                      </StackPanel>
+                      <ListBox Grid.Row="1"
+                               ItemsSource="{Binding RunTimes}"
+                               SelectedItem="{Binding SelectedRunTime}" />
+                    </Grid>
+                  </controls:GroupBox>
+
+                  <controls:GroupBox Grid.Row="3" Header="Minimum Interval">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBox Text="{Binding MinIntervalMinutes}"
+                               Width="60"
+                               VerticalAlignment="Center" />
+                      <TextBlock Text=" minutes between executions" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </StackPanel>
+                  </controls:GroupBox>
+
+                  <StackPanel Grid.Row="4"
+                              Orientation="Horizontal"
+                              HorizontalAlignment="Right"
+                              Margin="0,10,0,0">
+                    <TextBlock Text="* Unsaved changes"
+                               Classes="warning"
+                               VerticalAlignment="Center"
+                               Margin="0,0,20,0"
+                               IsVisible="{Binding IsDirty}" />
+                    <Button Content="Revert" Command="{Binding RevertScheduleCommand}" MinWidth="80" />
+                    <Button Content="Save"
+                            Command="{Binding SaveScheduleCommand}"
+                            MinWidth="80"
+                            FontWeight="Bold" />
+                  </StackPanel>
+                </Grid>
+              </controls:GroupBox>
+            </Grid>
+          </Grid>
+        </TabItem>
+      </TabControl>
+    </TabItem>
+
+    <TabItem Header="Logs">
+      <controls:GroupBox Header="Log Viewer">
+        <Grid ColumnDefinitions="250,*">
+          <Grid RowDefinitions="*,Auto">
+            <TabControl SelectedIndex="{Binding SelectedLogTab}">
+              <TabItem Header="Service Logs">
+                <ListBox ItemsSource="{Binding ServiceLogs}"
+                         SelectedItem="{Binding SelectedLogFile}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel>
+                        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding SizeDisplay}" Classes="hint" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </TabItem>
+              <TabItem Header="Script Logs">
+                <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,*">
+                  <TextBlock Text="Script folders" FontWeight="SemiBold" Margin="0,0,0,4" />
+                  <TextBlock Grid.Column="1" Text="Log files" FontWeight="SemiBold" Margin="8,0,0,4" />
+                  <ListBox Grid.Row="1"
+                           ItemsSource="{Binding ScriptLogFolders}"
+                           SelectedItem="{Binding SelectedScriptLogFolder}" />
+                  <ListBox Grid.Row="1"
+                           Grid.Column="1"
+                           Margin="8,0,0,0"
+                           ItemsSource="{Binding ScriptLogFiles}"
+                           SelectedItem="{Binding SelectedLogFile}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel>
+                          <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding SizeDisplay}" Classes="hint" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Grid>
+              </TabItem>
+            </TabControl>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+              <Button Content="Refresh" Command="{Binding RefreshServiceLogsCommand}" MinWidth="60" />
+              <Button Content="Open Folder" Command="{Binding OpenLogDirectoryCommand}" MinWidth="70" />
+            </StackPanel>
+          </Grid>
+
+          <Grid Grid.Column="1" Margin="8,0,0,0" RowDefinitions="Auto,*">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <TextBlock Text="Log Content" FontWeight="Bold" VerticalAlignment="Center" />
+              <Button Content="Refresh"
+                      Command="{Binding RefreshLogContentCommand}"
+                      MinWidth="60"
+                      Margin="10,0,0,0" />
+              <Button Content="Show in folder"
+                      Command="{Binding OpenLogInExplorerCommand}"
+                      MinWidth="100" />
+            </StackPanel>
+            <TextBox Grid.Row="1"
+                     Text="{Binding LogContent, Mode=OneWay}"
+                     IsReadOnly="True"
+                     FontFamily="Consolas, DejaVu Sans Mono, monospace"
+                     FontSize="11"
+                     AcceptsReturn="True"
+                     TextWrapping="NoWrap" />
+          </Grid>
+        </Grid>
+      </controls:GroupBox>
+    </TabItem>
+
+    <TabItem Header="Settings">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="8">
+          <controls:GroupBox Header="Service Control">
+            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+              <TextBlock Text="{Binding AppSettingsLoadError}"
+                         IsVisible="{Binding HasAppSettingsLoadError}"
+                         Classes="warning"
+                         TextWrapping="Wrap"
+                         Margin="0,0,0,8"
+                         Grid.ColumnSpan="2" />
+
+              <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8" Grid.ColumnSpan="2">
+                <TextBlock Text="Service Bin Path:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"
+                           FontWeight="Bold" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding ServiceBinPath}"
+                         VerticalAlignment="Center" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                  <Button Content="..." Command="{Binding BrowseServiceBinPathCommand}" MinWidth="30" />
+                  <Button Content="Reload" Command="{Binding ReloadAppSettingsCommand}" MinWidth="50" />
+                </StackPanel>
+              </Grid>
+
+              <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Service:" FontWeight="Bold" />
+                <TextBlock Text="{Binding ServiceName}" Margin="6,0,16,0" />
+                <TextBlock Text="Status:" FontWeight="Bold" />
+                <Ellipse Width="12"
+                         Height="12"
+                         Margin="6,0,6,0"
+                         VerticalAlignment="Center"
+                         Fill="{Binding ServiceStatusColor, Converter={StaticResource NamedColorBrush}}" />
+                <TextBlock Text="{Binding ServiceStatusText}" FontWeight="SemiBold" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                <Button Content="Register" Command="{Binding RegisterServiceCommand}" />
+                <Button Content="Unregister" Command="{Binding UnregisterServiceCommand}" />
+                <Rectangle Width="1" Height="18" Fill="#2a2e33" Margin="8,0" />
+                <Button Content="Start" Command="{Binding StartServiceCommand}" />
+                <Button Content="Stop" Command="{Binding StopServiceCommand}" />
+                <Rectangle Width="1" Height="18" Fill="#2a2e33" Margin="8,0" />
+                <Button Content="Refresh" Command="{Binding RefreshServiceStatusCommand}" />
+              </StackPanel>
+            </Grid>
+          </controls:GroupBox>
+
+          <TextBlock Text="The UI runs without elevation. Register, start, stop, and unregister prompt for administrator approval in place."
+                     Classes="hint"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,8" />
+
+          <controls:GroupBox Header="Shared settings">
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*">
+              <TextBlock Text="Settings file:"
+                         VerticalAlignment="Center"
+                         Margin="0,0,10,8"
+                         FontWeight="Bold" />
+              <TextBox Grid.Column="1"
+                       Text="{Binding SharedSettingsPath}"
+                       Margin="0,0,0,8"
+                       IsReadOnly="True" />
+              <TextBlock Grid.Row="1"
+                         Text="Scripts:"
+                         VerticalAlignment="Center"
+                         Margin="0,0,10,0"
+                         FontWeight="Bold" />
+              <TextBox Grid.Row="1"
+                       Grid.Column="1"
+                       Text="{Binding ScriptsDirectory}"
+                       IsReadOnly="True" />
+            </Grid>
+          </controls:GroupBox>
+
+          <controls:GroupBox Header="Log Path">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Log Directory:"
+                         VerticalAlignment="Center"
+                         Margin="0,0,10,0"
+                         FontWeight="Bold" />
+              <TextBox Text="{Binding LogDirectory}"
+                       MinWidth="300"
+                       VerticalAlignment="Center"
+                       IsReadOnly="True" />
+              <Button Content="Open" Command="{Binding OpenLogDirectoryCommand}" MinWidth="50" />
+            </StackPanel>
+          </controls:GroupBox>
+        </StackPanel>
+      </ScrollViewer>
+    </TabItem>
+  </TabControl>
+</Window>

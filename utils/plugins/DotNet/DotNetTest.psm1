@@ -7,11 +7,15 @@
 
 .DESCRIPTION
     Resolves one or more .NET test projects (`project` or `projects`), runs tests once
-    via TestRunner, then publishes metrics on the shared engine context for any later
+    via TestRunner (Microsoft Testing Platform + coverlet.MTP only — no VSTest /
+    coverlet.collector), then publishes metrics on the shared engine context for any later
     plugin: `qualityLineCoverage`, `testResult`, `coverageLineRate` / `coverageBranchRate` / `coverageMethodRate`,
     method counts, `testResultsDirectory`, `coverageCoberturaPaths`. Quality gates read
-    those keys generically (not tied to this plugin by name). Cobertura files are removed
-    after parsing unless TestRunner gains KeepResults.
+    those keys generically (not tied to this plugin by name). When `resultsDir` (or the
+    multi-project default TestResults folder) is used, Cobertura output is kept on disk
+    via TestRunner `-KeepResults` so repo-root `test-results/` persists after the run.
+    Product solutions must place `src/global.json` with `test.runner` =
+    Microsoft.Testing.Platform next to the `.sln`/`.slnx`.
 #>
 
 if (-not (Get-Command Import-PluginDependency -ErrorAction SilentlyContinue)) {
@@ -68,6 +72,7 @@ function Invoke-Plugin {
     }
     if ($testResultsDir) {
         $invokeTestParams.ResultsDirectory = $testResultsDir
+        $invokeTestParams.KeepResults = $true
     }
 
     $testResult = Invoke-TestsWithCoverage @invokeTestParams
@@ -76,19 +81,8 @@ function Invoke-Plugin {
         throw "Tests failed. $($testResult.Error)"
     }
 
-    $sharedSettings | Add-Member -NotePropertyName testResult -NotePropertyValue $testResult -Force
-    $sharedSettings | Add-Member -NotePropertyName qualityLineCoverage -NotePropertyValue $testResult.LineRate -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageLineRate -NotePropertyValue $testResult.LineRate -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageBranchRate -NotePropertyValue $testResult.BranchRate -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageMethodRate -NotePropertyValue $testResult.MethodRate -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageTotalMethods -NotePropertyValue $testResult.TotalMethods -Force
-    $sharedSettings | Add-Member -NotePropertyName coverageCoveredMethods -NotePropertyValue $testResult.CoveredMethods -Force
-    if (($testResult.PSObject.Properties.Name -contains 'ResultsDirectory') -and $testResult.ResultsDirectory) {
-        $sharedSettings | Add-Member -NotePropertyName testResultsDirectory -NotePropertyValue $testResult.ResultsDirectory -Force
-    }
-    if ($testResult.CoverageFiles) {
-        $sharedSettings | Add-Member -NotePropertyName coverageCoberturaPaths -NotePropertyValue @($testResult.CoverageFiles) -Force
-    }
+    Import-PluginDependency -ModuleName "TestRunner" -RequiredCommand "Publish-CoverageMetricsToSharedContext"
+    Publish-CoverageMetricsToSharedContext -SharedSettings $sharedSettings -TestResult $testResult
 
     Write-Log -Level "OK" -Message "  All tests passed!"
     Write-Log -Level "INFO" -Message "  Line Coverage:   $($testResult.LineRate)%"

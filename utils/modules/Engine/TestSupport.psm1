@@ -10,6 +10,13 @@ if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) {
     }
 }
 
+if (-not (Get-Command Initialize-EngineFactsBag -ErrorAction SilentlyContinue)) {
+    $engineContextModulePath = Join-Path $PSScriptRoot "EngineContext.psm1"
+    if (Test-Path $engineContextModulePath -PathType Leaf) {
+        Import-Module $engineContextModulePath -Force
+    }
+}
+
 function New-EngineContext {
     param(
         [Parameter(Mandatory = $true)]
@@ -19,20 +26,35 @@ function New-EngineContext {
         [string]$SrcDir,
 
         [Parameter(Mandatory = $false)]
-        [psobject]$Settings
+        [psobject]$Settings,
+
+        [Parameter(Mandatory = $false)]
+        [psobject]$ExtensionData
     )
 
-    $badgesDir = $null
-    if ($Settings -and $Settings.PSObject.Properties['paths'] -and $Settings.paths.badgesDir) {
-        $badgesDir = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir ([string]$Settings.paths.badgesDir)))
-    }
-
-    return [pscustomobject]@{
+    $context = [pscustomobject]@{
         scriptDir = $ScriptDir
         srcDir = $SrcDir
         utilsDir = $SrcDir
-        badgesDir = $badgesDir
+        facts = [ordered]@{}
     }
+    $context = Copy-RepoUtilsSecretsEnvNamesToContext -Context $context -Settings $Settings
+
+    $expandContext = Get-Command Expand-ExtensionEngineContext -ErrorAction SilentlyContinue
+    if ($expandContext) {
+        $expandParams = @{
+            Context = $context
+            ScriptDir = $ScriptDir
+            Settings = $Settings
+        }
+        if ($PSBoundParameters.ContainsKey('ExtensionData')) {
+            $expandParams['ExtensionData'] = $ExtensionData
+        }
+
+        return & $expandContext @expandParams
+    }
+
+    return $context
 }
 
 Export-ModuleMember -Function New-EngineContext

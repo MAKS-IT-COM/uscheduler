@@ -2,10 +2,10 @@ using System.Net;
 using System.Reflection;
 using MaksIT.Results;
 
+
 namespace MaksIT.PSScriptGateway.Services;
 
-internal static class ScriptExecutionResultFactory
-{
+internal static class ScriptExecutionResultFactory {
   private static readonly Type GenericResultType = typeof(Result<object?>);
   private static readonly Type NonGenericResultType = typeof(Result);
   private static readonly IReadOnlyDictionary<int, string> StatusMethodNames = Enum
@@ -13,8 +13,7 @@ internal static class ScriptExecutionResultFactory
     .Distinct()
     .ToDictionary(code => (int)code, code => code.ToString());
 
-  public static Result<object?> FromResponse(int statusCode, object? value, IReadOnlyList<string> messages)
-  {
+  public static Result<object?> FromResponse(int statusCode, object? value, IReadOnlyList<string> messages) {
     var normalizedStatusCode = NormalizeStatusCode(statusCode);
     var resolvedMessages = messages.Count == 0
       ? [GetDefaultMessage(normalizedStatusCode)]
@@ -29,8 +28,7 @@ internal static class ScriptExecutionResultFactory
     return Result<object?>.Ok(value, resolvedMessages);
   }
 
-  private static bool TryBuildGenericResult(int statusCode, object? value, string[] messages, out Result<object?> result)
-  {
+  private static bool TryBuildGenericResult(int statusCode, object? value, string[] messages, out Result<object?> result) {
     result = null!;
 
     if (!StatusMethodNames.TryGetValue(statusCode, out var methodName))
@@ -52,8 +50,7 @@ internal static class ScriptExecutionResultFactory
     return true;
   }
 
-  private static bool TryBuildResult(int statusCode, string[] messages, out Result result)
-  {
+  private static bool TryBuildResult(int statusCode, string[] messages, out Result result) {
     result = null!;
 
     if (!StatusMethodNames.TryGetValue(statusCode, out var methodName))
@@ -75,8 +72,7 @@ internal static class ScriptExecutionResultFactory
     return true;
   }
 
-  private static bool Matches(ParameterInfo[] parameters, params Type[] parameterTypes)
-  {
+  private static bool Matches(ParameterInfo[] parameters, params Type[] parameterTypes) {
     if (parameters.Length != parameterTypes.Length)
       return false;
 
@@ -88,15 +84,13 @@ internal static class ScriptExecutionResultFactory
     return true;
   }
 
-  private static int NormalizeStatusCode(int statusCode)
-  {
+  private static int NormalizeStatusCode(int statusCode) {
     return statusCode is >= 100 and <= 599
       ? statusCode
       : StatusCodes.Status500InternalServerError;
   }
 
-  private static string GetDefaultMessage(int statusCode)
-  {
+  private static string GetDefaultMessage(int statusCode) {
     return StatusMethodNames.TryGetValue(statusCode, out var methodName)
       ? methodName
       : "Request completed.";

@@ -15,6 +15,7 @@ function Import-EngineModules {
         (Join-Path $modulesDir 'ScriptConfig.psm1'),
         (Join-Path $modulesDir 'Logging.psm1'),
         (Join-Path $engineModuleDir 'PluginSupport.psm1'),
+        (Join-Path $engineModuleDir 'VaultSupport.psm1'),
         (Join-Path $engineModuleDir 'EngineContext.psm1')
     )
 
@@ -31,5 +32,10 @@ function Import-EngineModules {
         }
 
         Import-Module $modulePath -Force
+    }
+
+    $extensionImport = Join-Path $modulesDir 'Extensions' 'Import-ExtensionModules.ps1'
+    if (Test-Path -LiteralPath $extensionImport -PathType Leaf) {
+        . $extensionImport
     }
 }

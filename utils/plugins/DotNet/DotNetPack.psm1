@@ -30,7 +30,8 @@ function Invoke-Plugin {
 
     Import-PluginDependency -ModuleName "Logging" -RequiredCommand "Write-Log"
     Import-PluginDependency -ModuleName "ScriptConfig" -RequiredCommand "Assert-Command"
-    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Resolve-RelativePaths"
+    Import-PluginDependency -ModuleName "EngineContext" -RequiredCommand "Set-EngineFact"
+    Import-PluginDependency -ModuleName "DotNetArtifactSupport" -RequiredCommand "Resolve-DotNetPackageArtifacts"
 
     $sharedSettings = $Settings.context
     $scriptDir = $sharedSettings.scriptDir
@@ -48,12 +49,12 @@ function Invoke-Plugin {
 
     if ($Settings.PSObject.Properties['artifactsDir'] -and -not [string]::IsNullOrWhiteSpace([string]$Settings.artifactsDir)) {
         $artifactsDirectory = [System.IO.Path]::GetFullPath((Join-Path $scriptDir ([string]$Settings.artifactsDir)))
+        Set-EngineState -Context $sharedSettings -Name 'artifactsDirectory' -Value $artifactsDirectory
+        Set-EngineState -Context $sharedSettings -Name 'releaseDir' -Value $artifactsDirectory
     }
     else {
         $artifactsDirectory = $sharedSettings.artifactsDirectory
     }
-    $packageProjectPath = $null
-    $releaseArchiveInputs = @()
 
     Assert-Command dotnet
 
@@ -79,50 +80,19 @@ function Invoke-Plugin {
         throw "dotnet pack failed for $packageProjectPath."
     }
 
-    # dotnet pack can leave older packages in the artifacts directory.
-    # Pick the newest file matching the current version rather than assuming a clean folder.
-    $packageFile = $null
-    $newestNupkgWrite = [datetime]::MinValue
-    $nupkgCandidates = Get-ChildItem -Path $outputDir -Filter "*.nupkg"
-    foreach ($candidate in $nupkgCandidates) {
-        if (($candidate.Name -like "*$version*.nupkg") -and ($candidate.Name -notlike "*.symbols.nupkg") -and ($candidate.Name -notlike "*.snupkg")) {
-            if ($candidate.LastWriteTime -gt $newestNupkgWrite) {
-                $newestNupkgWrite = $candidate.LastWriteTime
-                $packageFile = $candidate
-            }
-        }
-    }
+    $resolved = Resolve-DotNetPackageArtifacts -ArtifactsDirectory $outputDir -Version $version
 
-    if (-not $packageFile) {
-        throw "Could not locate generated NuGet package for version $version in: $outputDir"
-    }
-
-    Write-Log -Level "OK" -Message "  Package ready: $($packageFile.FullName)"
-    $releaseArchiveInputs = @($packageFile.FullName)
-
-    $symbolsPackageFile = $null
-    $newestSnupkgWrite = [datetime]::MinValue
-    $snupkgCandidates = Get-ChildItem -Path $outputDir -Filter "*.snupkg"
-    foreach ($candidate in $snupkgCandidates) {
-        if ($candidate.Name -like "*$version*.snupkg") {
-            if ($candidate.LastWriteTime -gt $newestSnupkgWrite) {
-                $newestSnupkgWrite = $candidate.LastWriteTime
-                $symbolsPackageFile = $candidate
-            }
-        }
-    }
-
-    if ($symbolsPackageFile) {
-        Write-Log -Level "OK" -Message "  Symbols package ready: $($symbolsPackageFile.FullName)"
-        $releaseArchiveInputs += $symbolsPackageFile.FullName
+    Write-Log -Level "OK" -Message "  Package ready: $($resolved.PackageFile.FullName)"
+    if ($resolved.SymbolsPackageFile) {
+        Write-Log -Level "OK" -Message "  Symbols package ready: $($resolved.SymbolsPackageFile.FullName)"
     }
     else {
         Write-Log -Level "WARN" -Message "  Symbols package (.snupkg) not found for version $version."
     }
 
-    $sharedSettings | Add-Member -NotePropertyName packageFile -NotePropertyValue $packageFile -Force
-    $sharedSettings | Add-Member -NotePropertyName symbolsPackageFile -NotePropertyValue $symbolsPackageFile -Force
-    $sharedSettings | Add-Member -NotePropertyName releaseArchiveInputs -NotePropertyValue $releaseArchiveInputs -Force
+    Set-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'packageFile' -Value $resolved.PackageFile -Overwrite Replace -LegacyProperty 'packageFile'
+    Set-EngineFact -Context $sharedSettings -Namespace 'dotnet' -Name 'symbolsPackageFile' -Value $resolved.SymbolsPackageFile -Overwrite Replace -LegacyProperty 'symbolsPackageFile'
+    Set-EngineFact -Context $sharedSettings -Namespace 'release' -Name 'archiveInputs' -Value $resolved.ReleaseArchiveInputs -Overwrite Replace -LegacyProperty 'releaseArchiveInputs'
 }
 
 Export-ModuleMember -Function Invoke-Plugin
