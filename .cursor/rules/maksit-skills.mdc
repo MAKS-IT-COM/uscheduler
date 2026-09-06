@@ -1,0 +1,13 @@
+---
+description: Load MaksIT agent skills from homelab (deterministic)
+globs: "**/*.{cs,csproj,slnx,md,.editorconfig}"
+alwaysApply: true
+---
+
+# MaksIT skills (MaksIT.UScheduler)
+
+1. `E:\Users\maksym\source\repos\private\homelab\ai\skills\common\csharp\SKILL.md`
+2. `E:\Users\maksym\source\repos\private\homelab\ai\skills\common\maksit-repo-maintenance\SKILL.md`
+3. `E:\Users\maksym\source\repos\private\homelab\ai\skills\local-ollama\SKILL.md` — local Ollama offload (`@local-ollama`)
+
+Manifest: `.cursor/maksit-skills.json`.

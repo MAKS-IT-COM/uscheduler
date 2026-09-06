@@ -20,6 +20,9 @@ mono_crash.*
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
+# RepoUtils engine (VS gitignore [Rr]elease/ also matches this folder)
+!utils/engines/release/
+!utils/engines/release/**
 [Rr]eleases/
 x64/
 x86/
@@ -361,3 +364,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Generated test reports (RepoUtils)
+test-results/
+utils/tests/results/

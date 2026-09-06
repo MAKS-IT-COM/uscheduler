@@ -2,14 +2,13 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>1.0.2</Version>
+    <RootNamespace>$(MSBuildProjectName.Replace(" ", "_"))</RootNamespace>
+    <Version>1.1.0</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-UScheduler-040d8105-9e07-4024-a632-cbe091387b66</UserSecretsId>
     <OutputType>exe</OutputType>
     <PublishSingleFile Condition="'$(Configuration)' == 'Release'">false</PublishSingleFile>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,16 +16,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MaksIT.Core" Version="1.6.3" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.3" />
-    <PackageReference Include="Microsoft.PowerShell.Commands.Diagnostics" Version="7.5.4" />
-    <PackageReference Include="Microsoft.PowerShell.Commands.Management" Version="7.5.4" />
-    <PackageReference Include="Microsoft.PowerShell.Commands.Utility" Version="7.5.4" />
-    <PackageReference Include="Microsoft.PowerShell.ConsoleHost" Version="7.5.3" />
-    <PackageReference Include="Microsoft.WSMan.Management" Version="7.5.4" />
-    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.3" />
-    <PackageReference Include="System.Management.Automation" Version="7.5.4" />
+    <PackageReference Include="MaksIT.Core" Version="1.6.8" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.9" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Diagnostics" Version="7.6.3" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Management" Version="7.6.3" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Utility" Version="7.6.3" />
+    <PackageReference Include="Microsoft.PowerShell.ConsoleHost" Version="7.6.3" />
+    <PackageReference Include="Microsoft.WSMan.Management" Version="7.6.3" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.9" />
+    <PackageReference Include="System.Management.Automation" Version="7.6.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,7 +38,7 @@
       <Link>%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\badges\**\*" Link="badges\%(RecursiveDir)%(Filename)%(Extension)">
+    <None Include="..\..\assets\**\*" Link="assets\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

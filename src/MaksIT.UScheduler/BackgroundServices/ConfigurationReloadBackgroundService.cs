@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using MaksIT.Core.Extensions;
 using MaksIT.UScheduler.Shared;
 

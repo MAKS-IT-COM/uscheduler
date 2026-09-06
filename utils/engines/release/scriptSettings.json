@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "MaksIT.UScheduler Release Script Settings",
+  "description": "Community desktop pipeline. GitHub assets are siblings: portable zip (win-x64 worker, UI, Scripts), Windows setup exe (Avalonia UI), Flatpak (Avalonia UI). The zip never contains the installer or Flatpak.",
+  "plugins": [
+    {
+      "name": "DotNetReleaseVersion",
+      "stageLabel": "build",
+      "enabled": true,
+      "projectFiles": [
+        "..\\..\\..\\src\\MaksIT.UScheduler\\MaksIT.UScheduler.csproj",
+        "..\\..\\..\\src\\MaksIT.UScheduler.UI\\MaksIT.UScheduler.UI.csproj"
+      ]
+    },
+    {
+      "name": "DotNetTest",
+      "stageLabel": "test",
+      "enabled": true,
+      "project": "..\\..\\..\\src\\MaksIT.UScheduler.Tests",
+      "resultsDir": "..\\..\\..\\test-results"
+    },
+    {
+      "name": "QualityGate",
+      "stageLabel": "qualityGate",
+      "enabled": true,
+      "coverageThreshold": 0,
+      "failOnVulnerabilities": true,
+      "projectFiles": [
+        "..\\..\\..\\src\\MaksIT.UScheduler\\MaksIT.UScheduler.csproj",
+        "..\\..\\..\\src\\MaksIT.UScheduler.UI\\MaksIT.UScheduler.UI.csproj"
+      ]
+    },
+    {
+      "name": "DotNetPublish",
+      "stageLabel": "build",
+      "enabled": true,
+      "projectFiles": [
+        "..\\..\\..\\src\\MaksIT.UScheduler\\MaksIT.UScheduler.csproj",
+        "..\\..\\..\\src\\MaksIT.UScheduler.UI\\MaksIT.UScheduler.UI.csproj"
+      ],
+      "artifactsDir": "..\\..\\..\\releases",
+      "runtimeIdentifiers": [
+        "win-x64",
+        "linux-x64"
+      ],
+      "selfContained": true,
+      "publishSingleFile": false
+    },
+    {
+      "name": "BundleCustomization",
+      "stageLabel": "build",
+      "enabled": true,
+      "bundleDir": "..\\..\\..\\releases\\bundle",
+      "installerPayloadDir": "..\\..\\..\\releases\\installer-payload",
+      "scriptsPath": "..\\..\\..\\src\\Scripts",
+      "projects": {
+        "uiAppSettingsFile": "appsettings.json",
+        "uschedulerAppSettingsFile": "appsettings.json",
+        "uiServiceBinPath": "..\\MaksIT.UScheduler",
+        "uschedulerLogDir": "..\\Logs",
+        "scriptsRelativeToExe": "..\\Scripts"
+      }
+    },
+    {
+      "name": "DotNetCreateArchive",
+      "stageLabel": "build",
+      "enabled": true,
+      "zipNamePattern": "maksit-uscheduler-{version}.zip"
+    },
+    {
+      "name": "WindowsInstaller",
+      "stageLabel": "build",
+      "enabled": true,
+      "appName": "MaksIT UScheduler",
+      "manufacturer": "MaksIT",
+      "upgradeCode": "7b4e9c21-6a8f-4d3b-9e12-5c8a7f0b2d44",
+      "executableName": "MaksIT.UScheduler.UI.exe",
+      "runtimeIdentifier": "win-x64",
+      "publishDir": "..\\..\\..\\releases\\installer-payload",
+      "installScope": "perMachine",
+      "installFolderName": "UScheduler",
+      "iconPath": "..\\..\\..\\src\\MaksIT.UScheduler.UI\\Assets\\icon.ico",
+      "exeNamePattern": "maksit-uscheduler-{version}.exe"
+    },
+    {
+      "name": "FlatpakPack",
+      "stageLabel": "build",
+      "enabled": true,
+      "appId": "com.maks_it.UScheduler",
+      "appName": "MaksIT UScheduler",
+      "command": "maksit-uscheduler",
+      "executableName": "MaksIT.UScheduler.UI",
+      "runtimeIdentifier": "linux-x64",
+      "publishDir": "..\\..\\..\\releases\\MaksIT.UScheduler.UI\\linux-x64",
+      "summary": "Schedule PowerShell scripts and processes",
+      "projectLicense": "MIT",
+      "iconPath": "..\\..\\..\\src\\MaksIT.UScheduler.UI\\Assets\\icon.png",
+      "bundleNamePattern": "maksit-uscheduler-{version}.flatpak",
+      "buildBundle": true,
+      "attachSourceZip": false,
+      "wslDistro": "Debian",
+      "whenBuilderMissing": "skip"
+    },
+    {
+      "name": "ReleasePublishGuard",
+      "stageLabel": "release",
+      "enabled": true,
+      "branches": [
+        "main"
+      ],
+      "requireExactTagOnHead": true,
+      "tagVersionMustMatchDotNetRelease": true,
+      "whenRequirementsNotMet": "skip",
+      "requireCleanWorkingTree": false,
+      "ensureTagOnRemote": true,
+      "remoteName": "origin"
+    },
+    {
+      "name": "GitHub",
+      "stageLabel": "release",
+      "enabled": true,
+      "repository": "https://github.com/MAKS-IT-COM/uscheduler",
+      "releaseNotesFile": "..\\..\\..\\CHANGELOG.md",
+      "releaseTitlePattern": "Release {version}",
+      "requireReleaseAssets": true,
+      "githubSecret": "GitClone"
+    },
+    {
+      "name": "CleanupArtifacts",
+      "stageLabel": "release",
+      "enabled": true,
+      "includePatterns": [
+        "*"
+      ],
+      "excludePatterns": [
+        "*.zip",
+        "*.exe",
+        "*.flatpak"
+      ]
+    }
+  ],
+  "repoUtilsSecretsShared": "RepoUtilsSecretsShared",
+  "repoUtilsSecrets": "RepoUtilsSecrets",
+  "vaultRepoUtilsApplication": "Shared"
+}

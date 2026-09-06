@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Configuration for Force-AmendTaggedCommit.ps1",
+
+  "git": {
+    "remote": "origin",
+    "confirmBeforeAmend": true,
+    "confirmWhenNoChanges": true
+  },
+
+  "_comments": {
+    "git": {
+      "remote": "Remote name used for force-pushing branch and tag",
+      "confirmBeforeAmend": "Ask for confirmation before amend + force-push operations",
+      "confirmWhenNoChanges": "Ask for confirmation when there are no pending changes to amend"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="MAKS.IT">
+  <defs>
+    <linearGradient id="hi" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#33A5CF"/>
+      <stop offset="1" stop-color="#006199"/>
+    </linearGradient>
+    <linearGradient id="mid" x1="0.2" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#0795C5"/>
+      <stop offset="1" stop-color="#003D7A"/>
+    </linearGradient>
+    <linearGradient id="deep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00427E"/>
+      <stop offset="1" stop-color="#002A6A"/>
+    </linearGradient>
+    <linearGradient id="navy" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00306F"/>
+      <stop offset="1" stop-color="#001428"/>
+    </linearGradient>
+  </defs>
+  <!-- Origami M: sharp facets, light from upper-left. No wordmark. -->
+  <polygon fill="url(#hi)" points="28,40 78,40 62,216 12,216"/>
+  <polygon fill="url(#navy)" points="78,40 118,128 102,216 62,216"/>
+  <polygon fill="url(#mid)" points="118,128 158,40 174,216 102,216"/>
+  <polygon fill="url(#hi)" points="158,40 228,40 244,216 174,216"/>
+  <polygon fill="url(#deep)" points="28,40 78,40 70,128 20,128"/>
+  <polygon fill="url(#navy)" points="158,40 228,40 220,128 166,128"/>
+</svg>

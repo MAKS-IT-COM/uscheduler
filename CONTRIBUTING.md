@@ -4,21 +4,14 @@ Thank you for your interest in contributing to MaksIT.UScheduler!
 
 ## Table of Contents
 
-- [Contributing to MaksIT.UScheduler](#contributing-to-maksituscheduler)
-  - [Table of Contents](#table-of-contents)
-  - [Development Setup](#development-setup)
-  - [Branch Strategy](#branch-strategy)
-  - [Making Changes](#making-changes)
-  - [Versioning](#versioning)
-  - [Release Process](#release-process)
-    - [Prerequisites](#prerequisites)
-    - [Version Files](#version-files)
-    - [Branch-Based Release Behavior](#branch-based-release-behavior)
-    - [Development Build Workflow](#development-build-workflow)
-    - [Production Release Workflow](#production-release-workflow)
-    - [Release Script Details](#release-script-details)
-  - [Changelog Guidelines](#changelog-guidelines)
-    - [AI-Powered Changelog Generation (Optional)](#ai-powered-changelog-generation-optional)
+- [Development Setup](#development-setup)
+- [Branch Strategy](#branch-strategy)
+- [Making Changes](#making-changes)
+- [Commit Message Format](#commit-message-format)
+- [Versioning](#versioning)
+- [Build and Test](#build-and-test)
+- [Release Process](#release-process)
+- [Changelog Guidelines](#changelog-guidelines)
 
 ---
 
@@ -32,7 +25,7 @@ Thank you for your interest in contributing to MaksIT.UScheduler!
 
 2. Open the solution in Visual Studio or your preferred IDE:
    ```
-   src/MaksIT.UScheduler/MaksIT.UScheduler.sln
+   src/MaksIT.UScheduler.slnx
    ```
 
 3. Build the project:
@@ -56,8 +49,32 @@ Thank you for your interest in contributing to MaksIT.UScheduler!
 2. Make your changes
 3. Update `CHANGELOG.md` with your changes
 4. Update version in `.csproj` if needed
-5. Test your changes locally using dev tags
+5. Run tests locally (`utils/Invoke-TestEngine.bat`)
 6. Submit a pull request to `dev`
+
+---
+
+## Commit Message Format
+
+```
+(type): description
+```
+
+| Type | Description |
+|------|-------------|
+| `(feature):` | New feature or enhancement |
+| `(bugfix):` | Bug fix |
+| `(refactor):` | Code refactoring without functional changes |
+| `(perf):` | Performance improvement |
+| `(test):` | Add or update tests |
+| `(docs):` | Documentation-only changes |
+| `(build):` | Build system, dependencies, or packaging |
+| `(ci):` | CI/CD or automation changes |
+| `(style):` | Formatting or non-functional style changes |
+| `(revert):` | Revert a previous commit |
+| `(chore):` | General maintenance |
+
+Guidelines: lowercase description, no trailing period.
 
 ---
 
@@ -69,7 +86,29 @@ This project follows [Semantic Versioning](https://semver.org/):
 - **MINOR** - New functionality (backwards compatible)
 - **PATCH** - Bug fixes (backwards compatible)
 
-Version format: `X.Y.Z` (e.g., `1.0.1`)
+Version format: `X.Y.Z` (e.g., `1.0.2`) or SemVer prerelease (`0.1.0-alpha.1`, `0.1.0-beta.1`, `0.1.0-rc.1`). Git tag is `v{version}`.
+
+Before a release, keep versions aligned across:
+
+1. **`src/MaksIT.UScheduler/MaksIT.UScheduler.csproj`** — canonical `<Version>`
+2. **`src/MaksIT.UScheduler.UI/MaksIT.UScheduler.UI.csproj`**
+3. **`CHANGELOG.md`** — matching version header
+
+---
+
+## Build and Test
+
+### Tests and coverage badges
+
+```powershell
+.\utils\Invoke-TestEngine.bat
+```
+
+The test engine runs `MaksIT.UScheduler.Tests` under **Microsoft Testing Platform** (`src/global.json` `test.runner`) with **xunit.v3** and **coverlet.MTP**, applies the quality gate, and rewrites README coverage badges as shields.io URLs. Commit README.md when coverage changes. Or run `dotnet test` on the test project.
+
+### Sync RepoUtils
+
+Local-copy from [maksit-repoutils](https://git.maks-it.com/MAKS-IT/maksit-repoutils) (Community profile). Do not use `Update-RepoUtils`.
 
 ---
 
@@ -77,133 +116,43 @@ Version format: `X.Y.Z` (e.g., `1.0.1`)
 
 ### Prerequisites
 
-- .NET SDK installed
+- .NET SDK
+- PowerShell 7+
 - Git CLI
-- GitHub CLI (`gh`) - required only for production releases
-- GitHub token set in environment variable (configured in `scriptsettings.json`)
+- GitHub CLI (`gh`) — required for production releases on `main`
+- `GitHub` environment variable (see `utils/engines/release/scriptSettings.json`)
 
-### Version Files
+### Development build (`dev` branch)
 
-Before creating a release, ensure version consistency across:
+No git tag required. Uncommitted changes are allowed.
 
-1. **`.csproj`** - Update `<Version>` element:
-   ```xml
-   <Version>1.0.1</Version>
-   ```
-
-2. **`CHANGELOG.md`** - Add version entry at the top:
-   ```markdown
-   ## v1.0.1
-
-   ### Added
-   - New feature description
-
-   ### Fixed
-   - Bug fix description
-   ```
-
-### Branch-Based Release Behavior
-
-The release script behavior is controlled by the current branch (configurable in `scriptsettings.json`):
-
-| Branch | Tag Required | Uncommitted Changes | Behavior |
-|--------|--------------|---------------------|----------|
-| Dev (`dev`) | No | Allowed | Local build only (version from .csproj) |
-| Release (`main`) | Yes | Not allowed | Full release to GitHub |
-| Other | - | - | Blocked |
-
-Branch names can be customized in `scriptsettings.json`:
-```json
-"branches": {
-  "release": "main",
-  "dev": "dev"
-}
-```
-
-### Development Build Workflow
-
-Test builds on the `dev` branch - no tag needed:
-
-```bash
-# 1. On dev branch: Update version in .csproj and CHANGELOG.md
+```powershell
+# 1. Update version in .csproj files and CHANGELOG.md
 git checkout dev
 
-# 2. Commit your changes
-git add .
-git commit -m "Prepare v1.0.1 release"
-
-# 3. Run the release script (no tag needed!)
-cd src/scripts/Release-ToGitHub
-.\Release-ToGitHub.ps1
-
-# Output: DEV BUILD COMPLETE
-# Creates: release/maksit.uscheduler-1.0.1.zip (local only)
+# 2. Run the release engine
+.\utils\Invoke-ReleasePackage-Single.bat
 ```
 
-### Production Release Workflow
+Output: `release/maksit.uscheduler-{version}.zip` (local only; GitHub publish is skipped on non-release branches).
 
-When ready to publish, merge to `main`, create tag, and run:
+### Production release (`main` branch)
 
-```bash
-# 1. Merge to main
+```powershell
+# 1. Merge to main and ensure a clean working tree
 git checkout main
 git merge dev
 
-# 2. Create tag (required on main)
-git tag v1.0.1
+# 2. Create tag matching the .csproj version
+git tag v1.0.2
 
-# 3. Run the release script
-cd src/scripts/Release-ToGitHub
-.\Release-ToGitHub.ps1
-
-# Output: RELEASE COMPLETE
-# Creates: release/maksit.uscheduler-1.0.1.zip
-# Pushes tag to GitHub
-# Creates GitHub release with assets
+# 3. Run the release engine
+.\utils\Invoke-ReleasePackage-Single.bat
 ```
 
-### Release Script Details
+On `main`, `ReleasePublishGuard` requires an exact tag on `HEAD` matching the .NET project version. The engine publishes tests, builds the bundle, creates the ZIP, and pushes a GitHub release when guard requirements are met.
 
-The `Release-ToGitHub.ps1` script performs these steps:
-
-**Pre-flight checks:**
-- Detects current branch (`main` or `dev`)
-- On `main`: requires clean working directory; on `dev`: uncommitted changes allowed
-- Reads version from `.csproj` (source of truth)
-- On `main`: requires tag matching the version
-- Ensures `CHANGELOG.md` has matching version entry
-- Checks GitHub CLI authentication (main branch only)
-
-**Build process:**
-- Publishes .NET project in Release configuration
-- Copies `Scripts` folder into the release
-- Creates versioned ZIP archive
-- Extracts release notes from `CHANGELOG.md`
-
-**GitHub release (main branch only):**
-- Pushes tag to remote if not present
-- Creates (or recreates) GitHub release with assets
-
-**Configuration:**
-
-The script reads settings from `scriptsettings.json`:
-
-```json
-{
-  "github": {
-    "tokenEnvVar": "GITHUB_MAKS_IT_COM"
-  },
-  "paths": {
-    "csprojPath": "..\\..\\MaksIT.UScheduler\\MaksIT.UScheduler.csproj",
-    "changelogPath": "..\\..\\..\\CHANGELOG.md",
-    "releaseDir": "..\\..\\release"
-  },
-  "release": {
-    "zipNamePattern": "maksit.uscheduler-{version}.zip",
-    "releaseTitlePattern": "Release {version}"
-  }
-}
-```
+Configuration: `utils/engines/release/scriptSettings.json`
 
 ---
 
@@ -212,7 +161,7 @@ The script reads settings from `scriptsettings.json`:
 Follow [Keep a Changelog](https://keepachangelog.com/) format:
 
 ```markdown
-## v1.0.1
+## [1.0.2] - YYYY-MM-DD
 
 ### Added
 - New features
@@ -220,17 +169,8 @@ Follow [Keep a Changelog](https://keepachangelog.com/) format:
 ### Changed
 - Changes to existing functionality
 
-### Deprecated
-- Features to be removed in future
-
-### Removed
-- Removed features
-
 ### Fixed
 - Bug fixes
-
-### Security
-- Security-related changes
 ```
 
 ---
