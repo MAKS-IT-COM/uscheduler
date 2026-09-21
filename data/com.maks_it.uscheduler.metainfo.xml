@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.maks_it.uscheduler</id>
+  <name>UScheduler</name>
+  <summary>Schedule PowerShell scripts and processes</summary>
+  <developer id="com.maks_it">
+    <name>MaksIT</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <description>
+    <p>Schedule and run PowerShell scripts and console processes from an Avalonia desktop UI. Register the worker, edit schedules, and follow logs without a browser.</p>
+    <p>The Flatpak is the UI. Script files and logs live under the home folder. The worker is a separate install on Linux (systemd) or Windows (service).</p>
+    <ul>
+      <li>Script list, schedules, and log viewing</li>
+      <li>Register, start, and stop the worker (prompts for elevation)</li>
+      <li>Windows and Linux script compatibility flags</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">com.maks_it.uscheduler.desktop</launchable>
+  <provides>
+    <id>com.maks_it.UScheduler</id>
+  </provides>
+  <replaces>
+    <id>com.maks_it.UScheduler</id>
+  </replaces>
+  <url type="homepage">https://maks-it.com/</url>
+  <url type="bugtracker">https://github.com/MAKS-IT-COM/uscheduler/issues</url>
+  <url type="vcs-browser">https://github.com/MAKS-IT-COM/uscheduler</url>
+  <url type="donation">https://www.buymeacoffee.com/maksitcom</url>
+  <branding>
+    <color type="primary" scheme_preference="light">#33A5CF</color>
+    <color type="primary" scheme_preference="dark">#003D7A</color>
+  </branding>
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <releases>
+    <release version="1.2.0" date="2026-09-21">
+      <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.2.0/CHANGELOG.md</url>
+      <description>
+        <p>Linux Flatpak uses X11/XWayland from the GNOME app icon and a lowercase app id.</p>
+      </description>
+    </release>
+  </releases>
+</component>

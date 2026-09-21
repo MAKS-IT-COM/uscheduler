@@ -5,7 +5,8 @@ using MaksIT.UScheduler.Shared.Helpers;
 namespace MaksIT.UScheduler.UI.Services;
 
 /// <summary>
-/// Loads and saves machine-wide service configuration (ProgramData settings.json).
+/// Loads and saves machine-wide service configuration (ProgramData settings.json,
+/// or the portable Data folder).
 /// Shipped appsettings.json next to the worker is seed-only.
 /// </summary>
 public class AppSettingsService {
@@ -24,10 +25,10 @@ public class AppSettingsService {
     if (string.IsNullOrEmpty(seed) && !string.IsNullOrEmpty(serviceDirectory))
       seed = Path.Combine(serviceDirectory, ConfigurationFileService.SeedFileName);
 
-    _files = new ConfigurationFileService(HostPaths.SharedSettingsFile, seed);
+    _files = new ConfigurationFileService(HostPaths.ResolveSharedSettingsFile(serviceDirectory), seed);
     var config = _files.Current;
     config.EnsureDefaults();
-    ScriptsDirectory = config.GetEffectiveScriptsDirectory();
+    ScriptsDirectory = config.GetEffectiveScriptsDirectory(_serviceDirectory);
     return config;
   }
 
@@ -37,7 +38,7 @@ public class AppSettingsService {
 
     try {
       _files.Save(configuration);
-      ScriptsDirectory = configuration.GetEffectiveScriptsDirectory();
+      ScriptsDirectory = configuration.GetEffectiveScriptsDirectory(_serviceDirectory);
       return true;
     }
     catch {

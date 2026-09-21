@@ -4,7 +4,7 @@
 ![Branch Coverage](https://img.shields.io/badge/Branch%20Coverage-7%25-red)
 ![Method Coverage](https://img.shields.io/badge/Method%20Coverage-38.8%25-yellow)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
-![License](https://img.shields.io/badge/License-MIT-blue)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6)
 
 A modern scheduler built on **.NET 10** for running PowerShell scripts and console applications on **Windows and Linux**.
@@ -57,7 +57,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 
 ## Scripts Examples
 
-> **Note:** These examples are **bundled with the release** and copied to `C:\MaksIT\Scripts` by the Windows setup exe (and by `--install` / `--prepare-data`) **only if that folder or script is not already present**. Existing files and script folders are never overwritten or merged. They are listed in the default configuration but **disabled by default**. To enable an example, set `"Disabled": false` in `%ProgramData%\MaksIT\UScheduler\settings.json` (or use the UI).
+> **Note:** These examples are **bundled with the release** and copied to `C:\MaksIT\Scripts` (standard) or the install folder's `Scripts` directory (portable) by the Windows setup exe (and by `--install` / `--prepare-data`) **only if that folder or script is not already present**. Existing files and script folders are never overwritten or merged. They are listed in the default configuration but **disabled by default**. To enable an example, set `"Disabled": false` in the shared `settings.json` (or use the UI).
 
 - [Hyper-V Backup](./src/Scripts/HyperV-Backup/README.md) - Production-ready Hyper-V VM backup solution with scheduling and retention management
 - [Native-Sync](./src/Scripts/Native-Sync/README.md) - Production-ready file synchronization solution using pure PowerShell with no external dependencies
@@ -88,6 +88,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 
 ### Install layout
 
+The Windows setup exe lets you choose **Standard** or **Portable**.
+
+**Standard** (default):
+
 | Location | Purpose | Who can write |
 |----------|---------|----------------|
 | `C:\Program Files\MaksIT\UScheduler` | Worker (`MaksIT.UScheduler.exe`) and UI (`MaksIT.UScheduler.UI.exe`) | Administrators |
@@ -96,7 +100,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 | `%ProgramData%\MaksIT\UScheduler\settings.json` | Shared schedule configuration | Users (after install) |
 | `%AppData%\MaksIT\UScheduler\settings.json` | Per-user UI prefs (service bin path override) | Current user |
 
-The Windows setup exe, registering the service, or `MaksIT.UScheduler --prepare-data` creates the `C:\MaksIT` and ProgramData folders, copies bundled example scripts when missing, and grants the Users group modify rights so the UI can stay unelevated.
+**Portable** (everything in one folder):
+
+| Location | Purpose |
+|----------|---------|
+| *Install folder* (you choose it) | Worker and UI |
+| *Install folder*`\Scripts` | Scheduled scripts |
+| *Install folder*`\Logs` | Service and script logs |
+| *Install folder*`\Data\settings.json` | Shared schedule configuration |
+| *Install folder*`\Data\ui-settings.json` | UI prefs |
+
+A `portable` file in that folder (or a parent folder) marks the layout. Pick a writable location such as `C:\MaksIT\UScheduler` if you do not want Program Files. The Users group is granted modify rights on `Scripts`, `Logs`, and `Data` so the UI can stay unelevated.
+
+The Windows setup exe, registering the service, or `MaksIT.UScheduler --prepare-data` creates the data folders, copies bundled example scripts when missing, and grants the Users group modify rights so the UI can stay unelevated. Add `--portable` to keep data next to the binaries instead of `C:\MaksIT` and ProgramData.
 
 ### Using CLI Commands
 
@@ -123,6 +139,9 @@ MaksIT.UScheduler --help
 
 # Create data folders and ACLs without installing the service
 MaksIT.UScheduler --prepare-data
+
+# Portable layout: scripts, logs, and settings next to the executable
+MaksIT.UScheduler --prepare-data --portable
 ```
 
 On Windows the file is `MaksIT.UScheduler.exe`.
@@ -134,7 +153,8 @@ On Windows the file is `MaksIT.UScheduler.exe`.
 | `--start` | | Start the service |
 | `--stop` | | Stop the service |
 | `--status` | | Query service status |
-| `--prepare-data` | | Create `C:\MaksIT\Scripts`, `C:\MaksIT\Logs`, and shared settings (elevated) |
+| `--prepare-data` | | Create scripts, logs, and shared settings (elevated) |
+| `--portable` | | With `--install` / `--prepare-data`: keep data in the install folder |
 | `--help` | `-h` | Show help message |
 
 > **Note:** Service management commands require administrator / root privileges.
@@ -172,11 +192,35 @@ The UI is an **Avalonia** desktop app (Windows and Linux) for service registrati
 
 ### Getting Started
 
-When you unpack the portable zip, launch `MaksIT.UScheduler.UI.exe`. GitHub releases also ship a Windows setup exe (installs worker + UI to `C:\Program Files\MaksIT\UScheduler`) and a Flatpak of the UI.
+When you unpack the portable zip, launch `MaksIT.UScheduler.UI.exe` (or `Start-UScheduler.bat`). The zip is a portable layout: scripts, logs, and settings stay in the extracted folder. GitHub releases also ship a Windows setup exe (worker + UI; choose Standard or Portable on the install page) and a Flatpak of the UI.
+
+#### Linux (Flatpak)
+
+**User** (this account only):
+
+```bash
+flatpak install --user ./maksit-uscheduler-{version}.flatpak
+flatpak run com.maks_it.uscheduler
+```
+
+**System** (all users):
+
+```bash
+sudo flatpak install --system ./maksit-uscheduler-{version}.flatpak
+flatpak run com.maks_it.uscheduler
+```
+
+Uninstall: `flatpak uninstall --user com.maks_it.uscheduler` or `sudo flatpak uninstall --system com.maks_it.uscheduler`.
+
+The previous id `com.maks_it.UScheduler` is replaced by this lowercase id. Uninstall the old app before installing the new bundle if it was installed.
+
+If GNOME or KDE does not show a launcher icon, `flatpak run` may warn that `/var/lib/flatpak/exports/share` and `~/.local/share/flatpak/exports/share` are not on `XDG_DATA_DIRS`. Log out and back in once so the session picks up those paths.
+
+Linux uses X11/XWayland (Avalonia native Wayland still hangs on GNOME). The sandbox grants `--filesystem=home` for scripts and logs. The Flatpak is the UI; the worker is a separate Linux systemd install. AppStream and the desktop file live in [`data/`](data/).
 
 ![Manager launcher](./assets/explorer_6Ai8GBZ7xg.png)
 
-> **Note:** Service management (register, start, stop, unregister) prompts for administrator approval without restarting the UI. Schedule edits go to `%ProgramData%\MaksIT\UScheduler\settings.json` and do not require elevation after the first install.
+> **Note:** Service management (register, start, stop, unregister) prompts for administrator approval without restarting the UI. Schedule edits go to `%ProgramData%\MaksIT\UScheduler\settings.json` on a standard install (or `Data\settings.json` next to a portable install) and do not require elevation after the first install.
 
 ### Settings View
 
@@ -186,12 +230,12 @@ The Settings view is your starting point for configuring UScheduler.
 
 | Feature | Description |
 |---------|-------------|
-| **Service Bin Path** | Path to the worker folder (auto-detected from Program Files or the UI directory; override stored in `%AppData%/MaksIT/UScheduler/settings.json`) |
+| **Service Bin Path** | Path to the worker folder (auto-detected from Program Files, the UI directory, or a portable folder; override stored in `%AppData%/MaksIT/UScheduler/settings.json` or `Data\ui-settings.json` when portable) |
 | **Service Status** | Real-time status indicator (Running, Stopped, Starting, Stopping, Paused, Not Installed) |
 | **Register/Unregister** | Install or remove the Windows service or systemd unit (UAC / polkit prompt, UI stays open) |
 | **Start/Stop** | Control the service state (same in-app elevation) |
 | **Refresh** | Update the current service status display |
-| **Reload Settings** | Refresh shared configuration from `%ProgramData%\MaksIT\UScheduler\settings.json` |
+| **Reload Settings** | Refresh shared configuration from `%ProgramData%\MaksIT\UScheduler\settings.json` (or `Data\settings.json` when portable) |
 
 ### Main View — Schedule Management
 
@@ -262,9 +306,9 @@ Features:
 
 ### Machine-wide `settings.json`
 
-Host logging (log levels, Event Log source) stays in shipped `appsettings.json` next to `MaksIT.UScheduler.exe` under Program Files. Schedule configuration is **not** written there — a leftover `Configuration` block is copied once into the machine-wide file:
+Host logging (log levels, Event Log source) stays in shipped `appsettings.json` next to `MaksIT.UScheduler.exe`. Schedule configuration is **not** written there — a leftover `Configuration` block is copied once into the machine-wide file:
 
-`%ProgramData%\MaksIT\UScheduler\settings.json`
+`%ProgramData%\MaksIT\UScheduler\settings.json` (standard) or `{install folder}\Data\settings.json` (portable)
 
 ```json
 {
@@ -438,7 +482,7 @@ Invoke-ScheduledExecution -Config $Config -Automated:$Automated -CurrentDateTime
 1. Copy template
 2. Modify `$Config`
 3. Implement `Start-BusinessLogic`
-4. Add script to `%ProgramData%\MaksIT\UScheduler\settings.json` (or use the UI)
+4. Add script to the shared `settings.json` (ProgramData on a standard install, or `Data\settings.json` when portable — or use the UI)
 
 That’s it — the full scheduling engine is reused automatically.
 
@@ -515,6 +559,6 @@ Email: maksym.sadovnychyy@gmail.com
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE.md](LICENSE.md) for details.
+Apache 2.0 — see [LICENSE.md](LICENSE.md).
 
 ---

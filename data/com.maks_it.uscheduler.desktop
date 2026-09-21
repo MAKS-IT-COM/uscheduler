@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=UScheduler
+GenericName=Job scheduler
+Comment=Schedule PowerShell scripts and processes
+Exec=maksit-uscheduler
+Icon=com.maks_it.uscheduler
+StartupWMClass=com.maks_it.uscheduler
+StartupNotify=true
+Terminal=false
+Categories=Utility;System;
+Keywords=scheduler;powershell;cron;jobs;

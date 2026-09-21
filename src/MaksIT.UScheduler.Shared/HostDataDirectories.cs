@@ -5,38 +5,87 @@ using System.Runtime.Versioning;
 namespace MaksIT.UScheduler.Shared;
 
 /// <summary>
+/// Scripts, logs, and shared-settings locations for one install.
+/// </summary>
+public readonly record struct HostDataLayout(
+  string Root,
+  string ScriptsDirectory,
+  string LogDirectory,
+  string SharedSettingsFile,
+  bool Portable);
+
+/// <summary>
 /// Creates machine-wide data folders (scripts, logs, shared settings) and
 /// grants the Users group modify rights so the UI can run without elevation.
 /// Call from an elevated <c>--install</c> / <c>--prepare-data</c> process.
+/// Pass <c>--portable</c> (or drop a <see cref="HostPaths.PortableMarkerFileName"/>
+/// file) to keep scripts, logs, and settings under the install folder.
 /// </summary>
 public static class HostDataDirectories {
   /// <summary>Windows Built-in Users (locale-independent).</summary>
   private const string BuiltinUsersSid = "*S-1-5-32-545";
 
-  public static HostServiceOperationResult Prepare(string? installDirectory = null) {
+  public static HostDataLayout ResolveLayout(string? installDirectory = null, bool portableRequested = false) {
+    var installDir = string.IsNullOrWhiteSpace(installDirectory)
+      ? AppContext.BaseDirectory
+      : Path.GetFullPath(installDirectory);
+
+    var portableRoot = HostPaths.FindPortableRoot(installDir);
+    var portable = portableRequested || portableRoot is not null;
+    if (!portable) {
+      return new HostDataLayout(
+        HostPaths.DefaultDataRoot,
+        HostPaths.DefaultScriptsDirectory,
+        HostPaths.DefaultLogDirectory,
+        HostPaths.SharedSettingsFile,
+        false);
+    }
+
+    var root = portableRoot ?? installDir;
+    return new HostDataLayout(
+      root,
+      HostPaths.GetPortableScriptsDirectory(root),
+      HostPaths.GetPortableLogDirectory(root),
+      HostPaths.GetPortableSharedSettingsFile(root),
+      true);
+  }
+
+  public static HostServiceOperationResult Prepare(string? installDirectory = null, bool portable = false) {
     var installDir = string.IsNullOrWhiteSpace(installDirectory)
       ? AppContext.BaseDirectory
       : installDirectory;
     var messages = new List<string>();
 
     try {
-      Directory.CreateDirectory(HostPaths.DefaultDataRoot);
-      Directory.CreateDirectory(HostPaths.DefaultScriptsDirectory);
-      Directory.CreateDirectory(HostPaths.DefaultLogDirectory);
+      if (portable)
+        HostPaths.WritePortableMarker(Path.GetFullPath(installDir));
 
-      var settingsDir = Path.GetDirectoryName(HostPaths.SharedSettingsFile);
+      var layout = ResolveLayout(installDir, portable);
+      Directory.CreateDirectory(layout.Root);
+      Directory.CreateDirectory(layout.ScriptsDirectory);
+      Directory.CreateDirectory(layout.LogDirectory);
+
+      var settingsDir = Path.GetDirectoryName(layout.SharedSettingsFile);
       if (!string.IsNullOrEmpty(settingsDir))
         Directory.CreateDirectory(settingsDir);
 
       if (OperatingSystem.IsWindows()) {
-        GrantUsersModify(HostPaths.DefaultDataRoot, messages);
-        if (!string.IsNullOrEmpty(settingsDir))
-          GrantUsersModify(settingsDir, messages);
+        if (layout.Portable) {
+          GrantUsersModify(layout.ScriptsDirectory, messages);
+          GrantUsersModify(layout.LogDirectory, messages);
+          if (!string.IsNullOrEmpty(settingsDir))
+            GrantUsersModify(settingsDir, messages);
+        }
+        else {
+          GrantUsersModify(layout.Root, messages);
+          if (!string.IsNullOrEmpty(settingsDir))
+            GrantUsersModify(settingsDir, messages);
+        }
       }
       else if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) {
-        GrantUnixGroupWrite(HostPaths.DefaultDataRoot, messages);
-        GrantUnixGroupWrite(HostPaths.DefaultScriptsDirectory, messages);
-        GrantUnixGroupWrite(HostPaths.DefaultLogDirectory, messages);
+        GrantUnixGroupWrite(layout.Root, messages);
+        GrantUnixGroupWrite(layout.ScriptsDirectory, messages);
+        GrantUnixGroupWrite(layout.LogDirectory, messages);
         if (!string.IsNullOrEmpty(settingsDir))
           GrantUnixGroupWrite(settingsDir, messages);
       }
@@ -44,23 +93,26 @@ public static class HostDataDirectories {
       var source = HostPaths.FindBundledScriptsDirectory(installDir);
       if (source is null || !Directory.Exists(source)) {
         messages.Add(
-          $"Bundled scripts were not found next to '{installDir}'; left {HostPaths.DefaultScriptsDirectory} unchanged.");
+          $"Bundled scripts were not found next to '{installDir}'; left {layout.ScriptsDirectory} unchanged.");
       }
-      else if (PathsEqual(source, HostPaths.DefaultScriptsDirectory)) {
-        messages.Add($"Scripts directory: {HostPaths.DefaultScriptsDirectory}");
+      else if (PathsEqual(source, layout.ScriptsDirectory)) {
+        messages.Add($"Scripts directory: {layout.ScriptsDirectory}");
       }
       else {
-        var copy = CopySeedScriptsIfMissing(source, HostPaths.DefaultScriptsDirectory);
+        var copy = CopySeedScriptsIfMissing(source, layout.ScriptsDirectory);
         if (copy.CopiedFiles > 0)
-          messages.Add($"Copied {copy.CopiedFiles} new seed script file(s) to {HostPaths.DefaultScriptsDirectory}.");
+          messages.Add($"Copied {copy.CopiedFiles} new seed script file(s) to {layout.ScriptsDirectory}.");
         if (copy.SkippedItems > 0)
-          messages.Add($"Left {copy.SkippedItems} existing script folder(s)/file(s) unchanged in {HostPaths.DefaultScriptsDirectory}.");
+          messages.Add($"Left {copy.SkippedItems} existing script folder(s)/file(s) unchanged in {layout.ScriptsDirectory}.");
         if (copy.CopiedFiles == 0 && copy.SkippedItems == 0)
-          messages.Add($"Scripts directory: {HostPaths.DefaultScriptsDirectory}");
+          messages.Add($"Scripts directory: {layout.ScriptsDirectory}");
       }
 
-      messages.Add($"Logs directory: {HostPaths.DefaultLogDirectory}");
-      messages.Add($"Shared settings: {HostPaths.SharedSettingsFile}");
+      WritePortableSettingsIfNeeded(layout, installDir);
+      messages.Add($"Logs directory: {layout.LogDirectory}");
+      messages.Add($"Shared settings: {layout.SharedSettingsFile}");
+      if (layout.Portable)
+        messages.Add("Install type: portable (everything under the install folder).");
       return new HostServiceOperationResult(true, string.Join(Environment.NewLine, messages));
     }
     catch (Exception ex) {
@@ -100,6 +152,16 @@ public static class HostDataDirectories {
     }
 
     return new SeedCopyResult(copied, skipped);
+  }
+
+  private static void WritePortableSettingsIfNeeded(HostDataLayout layout, string installDir) {
+    if (!layout.Portable)
+      return;
+
+    var seed = Path.Combine(installDir, ConfigurationFileService.SeedFileName);
+    _ = new ConfigurationFileService(
+      layout.SharedSettingsFile,
+      File.Exists(seed) ? seed : null);
   }
 
   private static int CopyNewDirectory(string source, string destination) {
@@ -146,10 +208,7 @@ public static class HostDataDirectories {
   }
 
   private static bool PathsEqual(string left, string right) =>
-    string.Equals(
-      Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-      Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-      OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    HostPaths.PathsEqual(left, right);
 
   private static (int ExitCode, string Message) RunProcess(string fileName, string arguments) {
     using var process = Process.Start(new ProcessStartInfo {

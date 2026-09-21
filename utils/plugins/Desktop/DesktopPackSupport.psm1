@@ -283,13 +283,7 @@ function New-WixPackageXml {
         [string]$Architecture = 'x64',
 
         [Parameter(Mandatory = $false)]
-        [string]$IconPath,
-
-        [Parameter(Mandatory = $false)]
-        [string]$PostInstallFileName,
-
-        [Parameter(Mandatory = $false)]
-        [string]$PostInstallArguments
+        [string]$IconPath
     )
 
     $ns = 'http://wixtoolset.org/schemas/v4/wxs'
@@ -377,7 +371,6 @@ function New-WixPackageXml {
         '' = $installFolder
     }
     $componentIds = [System.Collections.Generic.List[string]]::new()
-    $postInstallFileId = $null
 
     $publishRoot = [System.IO.Path]::GetFullPath($PublishDirectory)
     $files = @(Get-ChildItem -LiteralPath $publishRoot -Recurse -File)
@@ -422,12 +415,6 @@ function New-WixPackageXml {
         $null = $fileNode.SetAttribute('KeyPath', 'yes')
         $null = $component.AppendChild($fileNode)
         $null = $parent.AppendChild($component)
-
-        if (-not [string]::IsNullOrWhiteSpace($PostInstallFileName) `
-                -and [string]::IsNullOrWhiteSpace($relativeDir) `
-                -and [string]::Equals($file.Name, $PostInstallFileName, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $postInstallFileId = $fileNode.GetAttribute('Id')
-        }
     }
 
     $exeName = [System.IO.Path]::GetFileName($ExecutablePath)
@@ -502,34 +489,6 @@ function New-WixPackageXml {
 
     $null = $package.AppendChild($feature)
 
-    if (-not [string]::IsNullOrWhiteSpace($PostInstallFileName)) {
-        if ([string]::IsNullOrWhiteSpace($postInstallFileId)) {
-            throw "WindowsInstaller postInstallExecutableName '$PostInstallFileName' was not harvested from $publishRoot."
-        }
-
-        if ([string]::IsNullOrWhiteSpace($PostInstallArguments)) {
-            throw "WindowsInstaller postInstallArguments is required when postInstallExecutableName is set."
-        }
-
-        $ca = $xml.CreateElement('CustomAction', $ns)
-        $null = $ca.SetAttribute('Id', 'PostInstallPrepareData')
-        $null = $ca.SetAttribute('FileRef', $postInstallFileId)
-        $arguments = if ($null -eq $PostInstallArguments) { '' } else { $PostInstallArguments }
-        $null = $ca.SetAttribute('ExeCommand', $arguments)
-        $null = $ca.SetAttribute('Execute', 'deferred')
-        $null = $ca.SetAttribute('Impersonate', 'no')
-        $null = $ca.SetAttribute('Return', 'check')
-        $null = $package.AppendChild($ca)
-
-        $seq = $xml.CreateElement('InstallExecuteSequence', $ns)
-        $custom = $xml.CreateElement('Custom', $ns)
-        $null = $custom.SetAttribute('Action', 'PostInstallPrepareData')
-        $null = $custom.SetAttribute('After', 'InstallFiles')
-        $null = $custom.SetAttribute('Condition', 'NOT REMOVE')
-        $null = $seq.AppendChild($custom)
-        $null = $package.AppendChild($seq)
-    }
-
     return $xml
 }
 
@@ -537,9 +496,10 @@ function Get-DefaultFlatpakFinishArgs {
     return @(
         '--share=ipc',
         '--share=network',
-        '--socket=fallback-x11',
+        '--socket=x11',
         '--socket=wayland',
         '--device=dri',
+        '--socket=pulseaudio',
         '--filesystem=home'
     )
 }
@@ -565,10 +525,116 @@ function New-FlatpakDesktopEntry {
         "Name=$AppName",
         "Exec=$Command",
         "Icon=$AppId",
+        "StartupWMClass=$AppId",
+        'StartupNotify=true',
         'Terminal=false',
         "Categories=$Categories"
     )
     return (($lines -join "`n") + "`n")
+}
+
+function Copy-FlatpakHicolorIcons {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AppId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$HicolorRoot,
+
+        [Parameter(Mandatory = $false)]
+        [string]$IconPath,
+
+        [Parameter(Mandatory = $false)]
+        [string]$SvgIconPath
+    )
+
+    $pngSource = $null
+    $svgSource = $null
+
+    if (-not [string]::IsNullOrWhiteSpace($IconPath) -and (Test-Path -LiteralPath $IconPath -PathType Leaf)) {
+        $ext = [System.IO.Path]::GetExtension($IconPath)
+        if ($ext -ieq '.png') {
+            $pngSource = $IconPath
+        }
+        elseif ($ext -ieq '.svg') {
+            $svgSource = $IconPath
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($SvgIconPath) -and (Test-Path -LiteralPath $SvgIconPath -PathType Leaf)) {
+        $svgSource = $SvgIconPath
+    }
+
+    if ([string]::IsNullOrWhiteSpace($svgSource) -and -not [string]::IsNullOrWhiteSpace($pngSource)) {
+        $siblingSvg = [System.IO.Path]::ChangeExtension($pngSource, '.svg')
+        if (Test-Path -LiteralPath $siblingSvg -PathType Leaf) {
+            $svgSource = $siblingSvg
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($pngSource) -and -not [string]::IsNullOrWhiteSpace($svgSource)) {
+        $siblingPng = [System.IO.Path]::ChangeExtension($svgSource, '.png')
+        if (Test-Path -LiteralPath $siblingPng -PathType Leaf) {
+            $pngSource = $siblingPng
+        }
+    }
+
+    $installed = $false
+
+    if (-not [string]::IsNullOrWhiteSpace($pngSource)) {
+        foreach ($size in @('48x48', '64x64', '128x128', '256x256')) {
+            $pngDir = Join-Path $HicolorRoot "$size\apps"
+            New-Item -ItemType Directory -Path $pngDir -Force | Out-Null
+            Copy-Item -LiteralPath $pngSource -Destination (Join-Path $pngDir "$AppId.png") -Force
+        }
+
+        $installed = $true
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($svgSource)) {
+        $svgDir = Join-Path $HicolorRoot 'scalable\apps'
+        New-Item -ItemType Directory -Path $svgDir -Force | Out-Null
+        Copy-Item -LiteralPath $svgSource -Destination (Join-Path $svgDir "$AppId.svg") -Force
+        $installed = $true
+    }
+
+    return $installed
+}
+
+function ConvertTo-FlatpakMetainfoDescriptionXml {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AppName,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Summary,
+
+        [Parameter(Mandatory = $false)]
+        [AllowEmptyString()]
+        [string]$Description
+    )
+
+    $text = $Description
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        $text = "$AppName is a desktop application. $Summary".Trim()
+    }
+
+    $paragraphs = [System.Collections.Generic.List[string]]::new()
+    foreach ($chunk in @($text -split '(\r?\n){2,}')) {
+        $trimmed = $chunk.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            continue
+        }
+
+        $paragraphs.Add('    <p>' + [System.Security.SecurityElement]::Escape($trimmed) + '</p>')
+    }
+
+    if ($paragraphs.Count -eq 0) {
+        $paragraphs.Add('    <p>' + [System.Security.SecurityElement]::Escape("$AppName is a desktop application.") + '</p>')
+    }
+
+    return ($paragraphs -join "`n")
 }
 
 function New-FlatpakMetainfoXml {
@@ -583,25 +649,123 @@ function New-FlatpakMetainfoXml {
         [string]$Summary,
 
         [Parameter(Mandatory = $false)]
+        [AllowEmptyString()]
+        [string]$Description = '',
+
+        [Parameter(Mandatory = $false)]
         [string]$ProjectLicense = 'MIT',
 
         [Parameter(Mandatory = $false)]
-        [string]$MetadataLicense = 'CC0-1.0'
+        [string]$MetadataLicense = 'CC0-1.0',
+
+        [Parameter(Mandatory = $false)]
+        [string]$Version = ''
     )
 
     $escapedName = [System.Security.SecurityElement]::Escape($AppName)
     $escapedSummary = [System.Security.SecurityElement]::Escape($Summary)
-    return @"
+    $descriptionXml = ConvertTo-FlatpakMetainfoDescriptionXml -AppName $AppName -Summary $Summary -Description $Description
+    $xml = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>$AppId</id>
   <name>$escapedName</name>
   <summary>$escapedSummary</summary>
+  <description>
+$descriptionXml
+  </description>
   <launchable type="desktop-id">$AppId.desktop</launchable>
   <metadata_license>$MetadataLicense</metadata_license>
   <project_license>$ProjectLicense</project_license>
 </component>
 "@
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        return $xml
+    }
+
+    return Set-FlatpakMetainfoRelease -XmlText $xml -Version $Version
+}
+
+function Set-FlatpakMetainfoRelease {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$XmlText,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Version,
+
+        [Parameter(Mandatory = $false)]
+        [string]$Date = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        throw "Set-FlatpakMetainfoRelease requires Version."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Date)) {
+        $Date = [datetime]::UtcNow.ToString('yyyy-MM-dd')
+    }
+
+    $doc = New-Object System.Xml.XmlDocument
+    $doc.PreserveWhitespace = $false
+    $doc.LoadXml($XmlText)
+    $component = $doc.SelectSingleNode('/component')
+    if ($null -eq $component) {
+        throw "Flatpak metainfo has no <component> root."
+    }
+
+    $releases = $component.SelectSingleNode('releases')
+    if ($null -eq $releases) {
+        $releases = $doc.CreateElement('releases')
+        $null = $component.AppendChild($releases)
+    }
+
+    $match = $null
+    foreach ($node in @($releases.SelectNodes('release'))) {
+        if ([string]$node.GetAttribute('version') -eq $Version) {
+            $match = $node
+            break
+        }
+    }
+
+    $first = $releases.SelectSingleNode('release')
+    if ($null -ne $match) {
+        $match.SetAttribute('date', $Date)
+        if (-not [object]::ReferenceEquals($match, $first)) {
+            $null = $releases.InsertBefore($match, $first)
+        }
+    }
+    else {
+        $release = $doc.CreateElement('release')
+        $release.SetAttribute('version', $Version)
+        $release.SetAttribute('date', $Date)
+        if ($null -eq $first) {
+            $null = $releases.AppendChild($release)
+        }
+        else {
+            $null = $releases.InsertBefore($release, $first)
+        }
+    }
+
+    $settings = New-Object System.Xml.XmlWriterSettings
+    $settings.Indent = $true
+    $settings.OmitXmlDeclaration = $false
+    $settings.Encoding = [System.Text.UTF8Encoding]::new($false)
+    $stream = New-Object System.IO.MemoryStream
+    try {
+        $writer = [System.Xml.XmlWriter]::Create($stream, $settings)
+        try {
+            $doc.Save($writer)
+        }
+        finally {
+            $writer.Dispose()
+        }
+
+        return [System.Text.Encoding]::UTF8.GetString($stream.ToArray())
+    }
+    finally {
+        $stream.Dispose()
+    }
 }
 
 function New-FlatpakManifestObject {
@@ -638,8 +802,8 @@ function New-FlatpakManifestObject {
     if ($null -eq $BuildCommands -or $BuildCommands.Count -eq 0) {
         $BuildCommands = @(
             'mkdir -p /app/lib /app/share',
-            'cp -a lib /app/lib',
-            'cp -a share /app/share',
+            'cp -a lib/. /app/lib/',
+            'cp -a share/. /app/share/',
             "install -Dm755 bin/$Command /app/bin/$Command",
             "chmod +x /app/lib/$ModuleName/$Command"
         )
@@ -677,7 +841,15 @@ function New-FlatpakLaunchScript {
         [string]$ExecutableFileName
     )
 
-    return "#!/bin/sh`nexec /app/lib/$ModuleName/$ExecutableFileName `"`$@`"`n"
+    $lib = "/app/lib/$ModuleName"
+    return @"
+#!/bin/sh
+LIB='$lib'
+if [ -f "`$LIB/flatpak-native.env" ]; then
+  . "`$LIB/flatpak-native.env"
+fi
+exec `$LIB/$ExecutableFileName "`$`@"
+"@
 }
 
 function Assert-FlatpakAppId {
@@ -1061,7 +1233,9 @@ Export-ModuleMember -Function `
     New-WixBundleXml, `
     Get-DefaultFlatpakFinishArgs, `
     New-FlatpakDesktopEntry, `
+    Copy-FlatpakHicolorIcons, `
     New-FlatpakMetainfoXml, `
+    Set-FlatpakMetainfoRelease, `
     New-FlatpakManifestObject, `
     New-FlatpakLaunchScript, `
     Assert-FlatpakAppId, `

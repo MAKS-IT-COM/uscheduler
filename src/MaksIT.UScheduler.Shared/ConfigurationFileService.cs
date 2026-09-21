@@ -6,8 +6,10 @@ namespace MaksIT.UScheduler.Shared;
 
 /// <summary>
 /// Loads and saves machine-wide <c>Configuration</c> under ProgramData
-/// (all-users AppData). Shipped <c>appsettings.json</c> next to the worker is
-/// seed-only; host logging stays in that file and is never copied.
+/// (all-users AppData), or under the portable Data folder when a
+/// <see cref="HostPaths.PortableMarkerFileName"/> file is present.
+/// Shipped <c>appsettings.json</c> next to the worker is seed-only; host
+/// logging stays in that file and is never copied.
 /// </summary>
 public sealed class ConfigurationFileService {
   public const string ProductFolder = HostPaths.ProductFolder;
@@ -27,7 +29,7 @@ public sealed class ConfigurationFileService {
 
   public ConfigurationFileService(string? configurationPath = null, string? seedPath = null) {
     FilePath = string.IsNullOrWhiteSpace(configurationPath)
-      ? HostPaths.SharedSettingsFile
+      ? HostPaths.ResolveSharedSettingsFile()
       : configurationPath;
 
     if (!string.IsNullOrWhiteSpace(seedPath))
@@ -93,6 +95,7 @@ public sealed class ConfigurationFileService {
       return;
 
     try {
+      HostPaths.ApplyPortableDefaults(_current, Path.GetDirectoryName(FilePath));
       Save(_current);
     }
     catch (UnauthorizedAccessException) {

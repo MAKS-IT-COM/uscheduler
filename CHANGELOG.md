@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-21
+
+### Added
+
+- Windows setup exe offers **Standard** or **Portable** install. Portable keeps binaries, scripts, logs, and settings in the selected folder (`Scripts`, `Logs`, and `Data` subfolders). `--prepare-data --portable` does the same from the CLI; the portable zip includes a `portable` marker so unpacked copies stay self-contained.
+
+### Changed
+
+- Relicensed the project from MIT to **Apache 2.0**.
+
+### Fixed
+
+- Linux Flatpak GNOME app icon uses X11/XWayland (`UsePlatformDetect` only). Avalonia 12.1.2 native Wayland still hangs on GNOME `xdg_toplevel.configure(0, 0)`. App id is lowercase `com.maks_it.uscheduler`. Uninstall the old `com.maks_it.UScheduler` id before installing a new bundle. AppStream lives in `data/`.
+- Flatpak AppStream version is the same shared release version as zip and MSI (`DotNetReleaseVersion` from the UI csproj / `Directory.Build.props`), so `flatpak info` matches the bundle file name.
+
 ## [1.1.1] - 2026-09-06
 
 ### Fixed

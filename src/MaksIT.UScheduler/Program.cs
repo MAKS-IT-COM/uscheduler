@@ -9,17 +9,19 @@ using MaksIT.UScheduler.BackgroundServices;
 
 var basePath = AppContext.BaseDirectory;
 var seedPath = Path.Combine(basePath, ConfigurationFileService.SeedFileName);
-var settingsPath = HostPaths.SharedSettingsFile;
+var portableRequested = HasFlag(args, "--portable");
 
 if (args.Length > 0) {
   var early = args[0].ToLowerInvariant();
   if (early is "--install" or "-i" or "--prepare-data") {
-    var prepared = HostDataDirectories.Prepare(basePath);
+    var prepared = HostDataDirectories.Prepare(basePath, portableRequested);
     Console.WriteLine(prepared.Message);
     if (!prepared.Success)
       return 1;
   }
 }
+
+var settingsPath = HostPaths.ResolveSharedSettingsFile(basePath);
 
 _ = new ConfigurationFileService(settingsPath, seedPath);
 
@@ -63,7 +65,7 @@ if (args.Length > 0) {
       return GetServiceStatus(serviceName);
 
     case "--prepare-data":
-      return PrepareDataDirectories(basePath);
+      return PrepareDataDirectories(basePath, portableRequested);
 
     case "--help":
     case "-h":
@@ -123,11 +125,12 @@ static void PrintHelp(string name) =>
       --start          Start the service
       --stop           Stop the service
       --status         Query service status
-      --prepare-data   Create C:\MaksIT\Scripts, C:\MaksIT\Logs, and shared settings (elevated)
+      --prepare-data   Create scripts, logs, and shared settings (elevated)
+      --portable       With --install / --prepare-data: keep data in the install folder
       --help, -h       Show this help message
 
     Service Name: {name}
-    Config File:  {HostPaths.SharedSettingsFile}
+    Config File:  {HostPaths.ResolveSharedSettingsFile()}
     Seed File:    appsettings.json (next to the executable, logging + first-run seed)
 
     Note: Install/uninstall/prepare-data typically require administrator / root privileges.
@@ -187,13 +190,18 @@ static int InstallService(string name, string exePath, string description) {
   return 1;
 }
 
-static int PrepareDataDirectories(string installDirectory) {
+static int PrepareDataDirectories(string installDirectory, bool portable) {
+  var layout = HostDataDirectories.ResolveLayout(installDirectory, portable);
   Console.WriteLine($"Install:  {installDirectory}");
-  Console.WriteLine($"Settings: {HostPaths.SharedSettingsFile}");
-  Console.WriteLine($"Scripts:  {HostPaths.DefaultScriptsDirectory}");
-  Console.WriteLine($"Logs:     {HostPaths.DefaultLogDirectory}");
+  Console.WriteLine($"Type:     {(layout.Portable ? "portable" : "standard")}");
+  Console.WriteLine($"Settings: {layout.SharedSettingsFile}");
+  Console.WriteLine($"Scripts:  {layout.ScriptsDirectory}");
+  Console.WriteLine($"Logs:     {layout.LogDirectory}");
   return 0;
 }
+
+static bool HasFlag(string[] args, string name) =>
+  args.Any(a => string.Equals(a, name, StringComparison.OrdinalIgnoreCase));
 
 static int UninstallService(string name) {
   if (OperatingSystem.IsWindows())

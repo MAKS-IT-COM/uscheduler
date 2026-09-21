@@ -173,4 +173,8 @@ Follow [Keep a Changelog](https://keepachangelog.com/) format:
 - Bug fixes
 ```
 
+## License
+
+By contributing, you agree that your contributions are licensed under the terms in [LICENSE.md](LICENSE.md) (Apache 2.0).
+
 ---

@@ -245,7 +245,9 @@ DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 exec "$DIR/MaksIT.UScheduler.UI/MaksIT.UScheduler.UI" "$@"
 '@
     Set-Content -Path $shPath -Value $shBody -Encoding utf8
-    Write-Log -Level "OK" -Message "  Created launchers."
+    $portableMarkerPath = Join-Path $bundleDirectory "portable"
+    Set-Content -Path $portableMarkerPath -Value "MaksIT.UScheduler portable layout" -Encoding ascii
+    Write-Log -Level "OK" -Message "  Created launchers and portable marker."
 
     $installerPayload = if ($pluginSettings.PSObject.Properties['installerPayloadDir'] -and -not [string]::IsNullOrWhiteSpace([string]$pluginSettings.installerPayloadDir)) {
         Resolve-PluginPath -Path ([string]$pluginSettings.installerPayloadDir) -BasePath $scriptDir

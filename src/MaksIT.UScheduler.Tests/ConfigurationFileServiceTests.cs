@@ -174,6 +174,105 @@ public class HostPathsTests {
   }
 
   [Fact]
+  public void FindPortableRoot_returns_null_without_marker() {
+    var root = Path.Combine(Path.GetTempPath(), $"uscheduler-no-portable-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(root);
+    try {
+      Assert.Null(HostPaths.FindPortableRoot(root));
+      Assert.False(HostPaths.IsPortableLayout(root));
+    }
+    finally {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
+  public void FindPortableRoot_finds_marker_in_start_directory() {
+    var root = Path.Combine(Path.GetTempPath(), $"uscheduler-portable-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(root);
+    File.WriteAllText(Path.Combine(root, HostPaths.PortableMarkerFileName), HostPaths.PortableMarkerContent);
+    try {
+      Assert.Equal(Path.GetFullPath(root), HostPaths.FindPortableRoot(root));
+      Assert.True(HostPaths.IsPortableLayout(root));
+      Assert.Equal(
+        Path.GetFullPath(Path.Combine(root, "Data", "settings.json")),
+        Path.GetFullPath(HostPaths.ResolveSharedSettingsFile(root)));
+      Assert.Equal(
+        Path.GetFullPath(Path.Combine(root, "Data", "ui-settings.json")),
+        Path.GetFullPath(HostPaths.ResolveUiSettingsFile(root)));
+    }
+    finally {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
+  public void FindPortableRoot_walks_up_to_parent_marker() {
+    var root = Path.Combine(Path.GetTempPath(), $"uscheduler-portable-parent-{Guid.NewGuid():N}");
+    var worker = Path.Combine(root, "MaksIT.UScheduler");
+    Directory.CreateDirectory(worker);
+    File.WriteAllText(Path.Combine(root, HostPaths.PortableMarkerFileName), HostPaths.PortableMarkerContent);
+    try {
+      Assert.Equal(Path.GetFullPath(root), HostPaths.FindPortableRoot(worker));
+    }
+    finally {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
+  public void ApplyPortableDefaults_replaces_machine_wide_paths() {
+    var root = Path.Combine(Path.GetTempPath(), $"uscheduler-portable-defaults-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(root);
+    File.WriteAllText(Path.Combine(root, HostPaths.PortableMarkerFileName), HostPaths.PortableMarkerContent);
+    try {
+      var config = new Configuration {
+        LogDir = HostPaths.DefaultLogDirectory,
+        ScriptsDir = HostPaths.DefaultScriptsDirectory
+      };
+      HostPaths.ApplyPortableDefaults(config, root);
+      Assert.Equal(Path.GetFullPath(Path.Combine(root, "Logs")), Path.GetFullPath(config.LogDir));
+      Assert.Equal(Path.GetFullPath(Path.Combine(root, "Scripts")), Path.GetFullPath(config.ScriptsDir));
+    }
+    finally {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
+  public void Copies_seed_into_portable_data_folder_with_local_paths() {
+    var root = Path.Combine(Path.GetTempPath(), $"uscheduler-portable-seed-{Guid.NewGuid():N}");
+    var data = Path.Combine(root, "Data");
+    Directory.CreateDirectory(data);
+    File.WriteAllText(Path.Combine(root, HostPaths.PortableMarkerFileName), HostPaths.PortableMarkerContent);
+    var seed = Path.Combine(root, "appsettings.json");
+    var user = Path.Combine(data, "settings.json");
+    var defaultLog = HostPaths.DefaultLogDirectory.Replace("\\", "\\\\", StringComparison.Ordinal);
+    var defaultScripts = HostPaths.DefaultScriptsDirectory.Replace("\\", "\\\\", StringComparison.Ordinal);
+    File.WriteAllText(seed, $$"""
+      {
+        "Logging": { "LogLevel": { "Default": "Information" } },
+        "Configuration": {
+          "LogDir": "{{defaultLog}}",
+          "ScriptsDir": "{{defaultScripts}}",
+          "Powershell": [ { "Path": "File-Sync\\file-sync.ps1", "Disabled": true } ]
+        }
+      }
+      """);
+
+    try {
+      var service = new ConfigurationFileService(user, seed);
+      Assert.True(File.Exists(user));
+      Assert.Equal(Path.GetFullPath(Path.Combine(root, "Logs")), Path.GetFullPath(service.Current.LogDir));
+      Assert.Equal(Path.GetFullPath(Path.Combine(root, "Scripts")), Path.GetFullPath(service.Current.ScriptsDir));
+      Assert.Single(service.Current.Powershell);
+    }
+    finally {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
   public void FindBundledScriptsDirectory_finds_scripts_next_to_start() {
     var root = Path.Combine(Path.GetTempPath(), $"uscheduler-bundled-{Guid.NewGuid():N}");
     var start = Path.Combine(root, "install");

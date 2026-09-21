@@ -62,7 +62,8 @@ public class ProcessConfiguration : TaskConfiguration {
 
 /// <summary>
 /// Root configuration class for the UScheduler service.
-/// Stored in machine-wide settings.json (ProgramData), not next to the exe.
+/// Stored in machine-wide settings.json (ProgramData), or under the install
+/// folder when a portable layout is used.
 /// </summary>
 public class Configuration {
   /// <summary>
@@ -103,12 +104,17 @@ public class Configuration {
     Processes ??= [];
   }
 
-  public string GetEffectiveScriptsDirectory() =>
-    HostPaths.ResolveScriptsDirectory(ScriptsDir);
+  public string GetEffectiveScriptsDirectory(string? baseDirectory = null) =>
+    HostPaths.ResolveScriptsDirectory(ScriptsDir, baseDirectory);
 
   public string GetEffectiveLogDirectory(string? baseDirectory = null) {
-    var logDir = string.IsNullOrWhiteSpace(LogDir) ? HostPaths.DefaultLogDirectory : LogDir;
-    return PathHelper.ResolvePath(logDir, baseDirectory ?? AppContext.BaseDirectory);
+    var start = baseDirectory ?? AppContext.BaseDirectory;
+    if (string.IsNullOrWhiteSpace(LogDir)) {
+      var root = HostPaths.FindPortableRoot(start);
+      return root is null ? HostPaths.DefaultLogDirectory : HostPaths.GetPortableLogDirectory(root);
+    }
+
+    return PathHelper.ResolvePath(LogDir, start);
   }
 
   public string ResolveScriptPath(string path) =>

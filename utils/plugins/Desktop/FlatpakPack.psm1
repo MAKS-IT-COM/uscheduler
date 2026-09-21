@@ -13,6 +13,8 @@
     (default Debian) on the Linux filesystem, then copies the bundle back.
     Docker Desktop WSL distros are never used. whenBuilderMissing skip|fail
     applies when neither native nor WSL builder is available.
+    AppStream <release version> and the bundle file name use the same shared
+    release version as zip/MSI (DotNetReleaseVersion: csproj or Directory.Build.props).
 #>
 
 if (-not (Get-Command Import-PluginDependency -ErrorAction SilentlyContinue)) {
@@ -32,6 +34,37 @@ function Get-FlatpakWhenBuilderMissing {
     }
 
     return $value
+}
+
+function Resolve-FlatpakPackOptionalFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptDir,
+
+        [Parameter(Mandatory = $false)]
+        [AllowEmptyString()]
+        [string]$Setting,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Setting)) {
+        return $null
+    }
+
+    $path = if ([System.IO.Path]::IsPathRooted($Setting)) {
+        $Setting
+    }
+    else {
+        [System.IO.Path]::GetFullPath((Join-Path $ScriptDir $Setting))
+    }
+
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "FlatpakPack $Name not found: $path"
+    }
+
+    return $path
 }
 
 function Test-FlatpakBuilderMissingException {
@@ -188,6 +221,9 @@ function Invoke-Plugin {
     $scriptDir = $sharedSettings.scriptDir
     $version = [string]$sharedSettings.version
     $artifactsDirectory = $sharedSettings.artifactsDirectory
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "FlatpakPack requires a release version in the shared context (same as zip/MSI: DotNetReleaseVersion from csproj / Directory.Build.props)."
+    }
 
     $appId = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'appId')
     $appName = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'appName')
@@ -206,9 +242,13 @@ function Invoke-Plugin {
     $runtimeIdentifier = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'runtimeIdentifier' -Default 'linux-x64')
     $publishDirSetting = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'publishDir')
     $iconSetting = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'iconPath')
+    $svgIconSetting = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'svgIconPath')
     $summary = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'summary' -Default $appName)
+    $description = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'description' -Default '')
     $projectLicense = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'projectLicense' -Default 'MIT')
     $categories = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'categories' -Default 'Utility;')
+    $metainfoSetting = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'metainfoPath' -Default '')
+    $desktopFileSetting = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'desktopPath' -Default '')
     $runtime = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'runtime' -Default 'org.freedesktop.Platform')
     $runtimeVersion = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'runtimeVersion' -Default '24.08')
     $sdk = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'sdk' -Default 'org.freedesktop.Sdk')
@@ -264,8 +304,8 @@ function Invoke-Plugin {
     $binDir = Join-Path $filesRoot 'bin'
     $shareAppDir = Join-Path $filesRoot 'share\applications'
     $shareMetaDir = Join-Path $filesRoot 'share\metainfo'
-    $shareIconDir = Join-Path $filesRoot 'share\icons\hicolor\256x256\apps'
-    New-Item -ItemType Directory -Path $libDir, $binDir, $shareAppDir, $shareMetaDir, $shareIconDir -Force | Out-Null
+    $hicolorRoot = Join-Path $filesRoot 'share\icons\hicolor'
+    New-Item -ItemType Directory -Path $libDir, $binDir, $shareAppDir, $shareMetaDir, $hicolorRoot -Force | Out-Null
 
     Write-Log -Level "STEP" -Message "Staging Flatpak layout from $publishDirectory"
     Copy-Item -Path (Join-Path $publishDirectory '*') -Destination $libDir -Recurse -Force
@@ -274,20 +314,56 @@ function Invoke-Plugin {
     $launchPath = Join-Path $binDir $command
     [System.IO.File]::WriteAllText($launchPath, $launchScript.Replace("`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
 
-    $desktopPath = Join-Path $shareAppDir "$appId.desktop"
-    [System.IO.File]::WriteAllText(
-        $desktopPath,
-        (New-FlatpakDesktopEntry -AppId $appId -AppName $appName -Command $command -Categories $categories).Replace("`r`n", "`n"),
-        [System.Text.UTF8Encoding]::new($false)
-    )
+    $desktopDest = Join-Path $shareAppDir "$appId.desktop"
+    $upstreamDesktop = Resolve-FlatpakPackOptionalFile -ScriptDir $scriptDir -Setting $desktopFileSetting -Name 'desktopPath'
+    if ($null -ne $upstreamDesktop) {
+        $desktopText = [System.IO.File]::ReadAllText($upstreamDesktop) -replace "`r`n", "`n" -replace "`r", "`n"
+        if (-not $desktopText.EndsWith("`n")) {
+            $desktopText += "`n"
+        }
 
-    $metaPath = Join-Path $shareMetaDir "$appId.metainfo.xml"
-    [System.IO.File]::WriteAllText(
-        $metaPath,
-        (New-FlatpakMetainfoXml -AppId $appId -AppName $appName -Summary $summary -ProjectLicense $projectLicense).Replace("`r`n", "`n"),
-        [System.Text.UTF8Encoding]::new($false)
-    )
+        [System.IO.File]::WriteAllText($desktopDest, $desktopText, [System.Text.UTF8Encoding]::new($false))
+    }
+    else {
+        [System.IO.File]::WriteAllText(
+            $desktopDest,
+            (New-FlatpakDesktopEntry -AppId $appId -AppName $appName -Command $command -Categories $categories).Replace("`r`n", "`n"),
+            [System.Text.UTF8Encoding]::new($false)
+        )
+    }
 
+    $metaDest = Join-Path $shareMetaDir "$appId.metainfo.xml"
+    $upstreamMetainfo = Resolve-FlatpakPackOptionalFile -ScriptDir $scriptDir -Setting $metainfoSetting -Name 'metainfoPath'
+    if ($null -ne $upstreamMetainfo) {
+        $metaText = [System.IO.File]::ReadAllText($upstreamMetainfo) -replace "`r`n", "`n" -replace "`r", "`n"
+        if (-not $metaText.EndsWith("`n")) {
+            $metaText += "`n"
+        }
+
+        $metaText = $metaText.Replace('{version}', $version)
+        $metaText = Set-FlatpakMetainfoRelease -XmlText $metaText -Version $version
+        if (-not $metaText.EndsWith("`n")) {
+            $metaText += "`n"
+        }
+
+        [System.IO.File]::WriteAllText($metaDest, $metaText, [System.Text.UTF8Encoding]::new($false))
+    }
+    else {
+        [System.IO.File]::WriteAllText(
+            $metaDest,
+            (New-FlatpakMetainfoXml -AppId $appId -AppName $appName -Summary $summary -Description $description -ProjectLicense $projectLicense -Version $version).Replace("`r`n", "`n"),
+            [System.Text.UTF8Encoding]::new($false)
+        )
+    }
+
+    $stagedMeta = [System.IO.File]::ReadAllText($metaDest)
+    if ($stagedMeta -notmatch [regex]::Escape("version=`"$version`"")) {
+        throw "FlatpakPack failed to stamp AppStream release version '$version' into $metaDest."
+    }
+
+    Write-Log -Level "OK" -Message "  AppStream release version: $version"
+
+    $iconPath = $null
     if (-not [string]::IsNullOrWhiteSpace($iconSetting)) {
         $iconPath = if ([System.IO.Path]::IsPathRooted($iconSetting)) {
             $iconSetting
@@ -299,21 +375,39 @@ function Invoke-Plugin {
         if (-not (Test-Path -LiteralPath $iconPath -PathType Leaf)) {
             throw "FlatpakPack iconPath not found: $iconPath"
         }
+    }
 
-        if ([System.IO.Path]::GetExtension($iconPath) -ine '.png') {
-            Write-Log -Level "WARN" -Message "  Flatpak icon should be PNG; skipping copy of $iconPath"
+    $svgIconPath = $null
+    if (-not [string]::IsNullOrWhiteSpace($svgIconSetting)) {
+        $svgIconPath = if ([System.IO.Path]::IsPathRooted($svgIconSetting)) {
+            $svgIconSetting
         }
         else {
-            Copy-Item -LiteralPath $iconPath -Destination (Join-Path $shareIconDir "$appId.png") -Force
+            [System.IO.Path]::GetFullPath((Join-Path $scriptDir $svgIconSetting))
         }
+
+        if (-not (Test-Path -LiteralPath $svgIconPath -PathType Leaf)) {
+            throw "FlatpakPack svgIconPath not found: $svgIconPath"
+        }
+    }
+
+    $iconInstalled = Copy-FlatpakHicolorIcons `
+        -AppId $appId `
+        -HicolorRoot $hicolorRoot `
+        -IconPath $iconPath `
+        -SvgIconPath $svgIconPath
+
+    if (-not $iconInstalled -and -not [string]::IsNullOrWhiteSpace($iconPath)) {
+        Write-Log -Level "WARN" -Message "  Flatpak icon should be PNG or SVG; skipping copy of $iconPath"
     }
 
     $buildCommands = @(
         'mkdir -p /app/lib /app/share',
         "cp -a lib/$moduleName /app/lib/$moduleName",
-        'cp -a share /app/share',
+        'cp -a share/. /app/share/',
         "install -Dm755 bin/$command /app/bin/$command",
-        "chmod +x /app/lib/$moduleName/$executableFileName"
+        "chmod +x /app/lib/$moduleName/$executableFileName",
+        'gtk-update-icon-cache -f /app/share/icons/hicolor >/dev/null 2>&1 || true'
     )
 
     $manifest = New-FlatpakManifestObject `

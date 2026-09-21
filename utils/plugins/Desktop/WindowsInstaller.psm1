@@ -9,8 +9,6 @@
     Harvests a win-* (or sole) DotNetPublish folder into a WiX MSI, then wraps
     it in a Burn bootstrapper .exe. The .exe is the GitHub asset; the MSI/WXS
     stay in a staging folder and are not added to the portable zip.
-    Optional postInstallExecutableName + postInstallArguments run a deferred
-    elevated custom action after InstallFiles (used to seed C:\MaksIT\Scripts).
     `wix build -arch` follows `runtimeIdentifier` (default win-x64 → x64) so
     per-machine installs go to `C:\Program Files`, not Program Files (x86).
     Requires the WiX CLI (`dotnet tool install -g wix`). WiX v7: accept the
@@ -215,9 +213,6 @@ function Invoke-Plugin {
     $msiPath = Join-Path $stageDir ($safeName + '-' + $version + '.msi')
     $bundleWxsPath = Join-Path $stageDir ($safeName + '-' + $version + '-bundle.wxs')
 
-    $postInstallFileName = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'postInstallExecutableName' -Default '')
-    $postInstallArguments = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'postInstallArguments' -Default '')
-
     Write-Log -Level "STEP" -Message "Generating WiX source for '$appName' from $publishDirectory ($wixArch)"
     $xml = New-WixPackageXml `
         -AppName $appName `
@@ -229,9 +224,7 @@ function Invoke-Plugin {
         -InstallScope $installScope `
         -InstallFolderName $installFolderName `
         -Architecture $wixArch `
-        -IconPath $iconPath `
-        -PostInstallFileName $postInstallFileName `
-        -PostInstallArguments $postInstallArguments
+        -IconPath $iconPath
 
     $xml.Save($wxsPath)
     Write-Log -Level "OK" -Message "  WiX source: $wxsPath"

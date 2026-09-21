@@ -78,7 +78,8 @@ public partial class MainViewModel : ObservableObject {
     var seedPath = string.IsNullOrEmpty(bin)
       ? null
       : Path.Combine(bin, ConfigurationFileService.SeedFileName);
-    var sharedExists = File.Exists(HostPaths.SharedSettingsFile);
+    var sharedSettingsPath = HostPaths.ResolveSharedSettingsFile(bin);
+    var sharedExists = File.Exists(sharedSettingsPath);
     var seedExists = !string.IsNullOrEmpty(seedPath) && File.Exists(seedPath);
 
     if (!sharedExists && !seedExists) {
@@ -86,8 +87,8 @@ public partial class MainViewModel : ObservableObject {
       AppSettingsLoadError = "Set Service Bin Path to the worker folder (seed appsettings.json), or register the service to create shared settings.";
       ServiceName = string.Empty;
       LogDirectory = string.Empty;
-      ScriptsDirectory = HostPaths.DefaultScriptsDirectory;
-      SharedSettingsPath = HostPaths.SharedSettingsFile;
+      ScriptsDirectory = HostPaths.ResolveScriptsDirectory(startDirectory: bin);
+      SharedSettingsPath = string.IsNullOrEmpty(bin) ? HostPaths.ResolveSharedSettingsFile() : sharedSettingsPath;
       ProcessList.Clear();
       return;
     }
@@ -98,8 +99,8 @@ public partial class MainViewModel : ObservableObject {
       _serviceManager = new HostServiceManager(_serviceConfig.ServiceName);
       ServiceName = _serviceConfig.ServiceName;
       LogDirectory = _serviceConfig.GetEffectiveLogDirectory(bin);
-      ScriptsDirectory = _serviceConfig.GetEffectiveScriptsDirectory();
-      SharedSettingsPath = _appSettingsService.SettingsPath ?? HostPaths.SharedSettingsFile;
+      ScriptsDirectory = _serviceConfig.GetEffectiveScriptsDirectory(bin);
+      SharedSettingsPath = _appSettingsService.SettingsPath ?? HostPaths.ResolveSharedSettingsFile(bin);
       ProcessList.Clear();
       foreach (var p in _serviceConfig.Processes)
         ProcessList.Add(p);
@@ -108,8 +109,8 @@ public partial class MainViewModel : ObservableObject {
       AppSettingsLoadError = "Failed to load shared settings. Register the service once to create writable data folders.";
       ServiceName = string.Empty;
       LogDirectory = string.Empty;
-      ScriptsDirectory = HostPaths.DefaultScriptsDirectory;
-      SharedSettingsPath = HostPaths.SharedSettingsFile;
+      ScriptsDirectory = HostPaths.ResolveScriptsDirectory(startDirectory: bin);
+      SharedSettingsPath = HostPaths.ResolveSharedSettingsFile(bin);
       ProcessList.Clear();
     }
   }
@@ -132,7 +133,7 @@ public partial class MainViewModel : ObservableObject {
   private string _scriptsDirectory = HostPaths.DefaultScriptsDirectory;
 
   [ObservableProperty]
-  private string _sharedSettingsPath = HostPaths.SharedSettingsFile;
+  private string _sharedSettingsPath = HostPaths.ResolveSharedSettingsFile();
 
   [ObservableProperty]
   [NotifyPropertyChangedFor(nameof(HasAppSettingsLoadError))]
@@ -205,7 +206,7 @@ public partial class MainViewModel : ObservableObject {
     if (string.IsNullOrWhiteSpace(ResolvedExecutablePath) || !File.Exists(ResolvedExecutablePath)) {
       await _dialogs.ShowMessageAsync(
         "Register Service",
-        "Could not find MaksIT.UScheduler.exe. Set Service Bin Path to the Program Files install folder.");
+        "Could not find MaksIT.UScheduler.exe. Set Service Bin Path to the worker install folder.");
       return;
     }
 

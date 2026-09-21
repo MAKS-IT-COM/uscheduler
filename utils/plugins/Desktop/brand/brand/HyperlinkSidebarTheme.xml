@@ -26,25 +26,17 @@
             <Label X="185" Y="11" Width="-11" Height="32" FontId="1" DisablePrefix="yes">#(loc.Title)</Label>
             <ImageControl X="11" Y="11" Width="165" Height="400" ImageFile="logoside.png"/>
             <Label X="185" Y="50" Width="-11" Height="32" FontId="2" DisablePrefix="yes">#(loc.InstallHeader)</Label>
-            <Label X="185" Y="91" Width="-11" Height="24" FontId="3" DisablePrefix="yes">
+            <Label X="185" Y="91" Width="-11" Height="40" FontId="3" DisablePrefix="yes">
                 <Text Condition="WixStdBASuppressOptionsUI">#(loc.InstallMessage)</Text>
                 <Text Condition="NOT WixStdBASuppressOptionsUI">#(loc.InstallMessageOptions)</Text>
             </Label>
-            <RadioButtons Name="InstallLayout">
-                <RadioButton X="185" Y="116" Height="18" Width="-11" Value="standard" TabStop="yes" FontId="3">Standard — Program Files, data in C:\MaksIT</RadioButton>
-                <RadioButton X="185" Y="134" Height="18" Width="-11" Value="portable" TabStop="yes" FontId="3">Portable — everything in one folder</RadioButton>
-            </RadioButtons>
-            <Label X="185" Y="156" Width="-11" Height="17" FontId="3">
-                <Text Condition="InstallLayout = &quot;portable&quot;">Folder for program, scripts, logs, and settings</Text>
-                <Text Condition="InstallLayout &lt;&gt; &quot;portable&quot;">#(loc.OptionsLocationLabel)</Text>
-            </Label>
-            <Editbox Name="InstallFolder" X="185" Y="174" Width="-91" Height="21" TabStop="yes" FontId="3" FileSystemAutoComplete="yes" />
-            <Button Name="InstallFolderBrowseButton" X="-11" Y="173" Width="75" Height="23" TabStop="yes" FontId="3">
+            <Label X="185" Y="138" Width="-11" Height="17" FontId="3">#(loc.OptionsLocationLabel)</Label>
+            <Editbox Name="InstallFolder" X="185" Y="160" Width="-91" Height="21" TabStop="yes" FontId="3" FileSystemAutoComplete="yes" />
+            <Button Name="InstallFolderBrowseButton" X="-11" Y="159" Width="75" Height="23" TabStop="yes" FontId="3">
                 <Text>#(loc.OptionsBrowseButton)</Text>
                 <BrowseDirectoryAction VariableName="InstallFolder" />
             </Button>
-            <Checkbox Name="InstallDesktopShortcut" X="185" Y="200" Width="-11" Height="17" TabStop="yes" FontId="3">Place a shortcut on the desktop</Checkbox>
-            <Label X="185" Y="220" Width="-11" Height="32" FontId="3" DisablePrefix="yes" VisibleCondition="InstallLayout = &quot;portable&quot;">Scripts, logs, and settings stay in this folder (Scripts, Logs, and Data subfolders). Pick a writable location if you do not want Program Files.</Label>
+            <Checkbox Name="InstallDesktopShortcut" X="185" Y="192" Width="-11" Height="17" TabStop="yes" FontId="3">Place a shortcut on the desktop</Checkbox>
             <Hypertext Name="EulaHyperlink" X="185" Y="-111" Width="-11" Height="17" TabStop="yes" FontId="3" HideWhenDisabled="yes">#(loc.InstallLicenseLinkText)</Hypertext>
             <Label Name="InstallVersion" X="185" Y="-81" Width="-11" Height="17" FontId="3" DisablePrefix="yes" VisibleCondition="WixStdBAShowVersion">#(loc.InstallVersion)</Label>
             <Checkbox Name="EulaAcceptCheckbox" X="185" Y="-51" Width="-11" Height="17" TabStop="yes" FontId="3" HideWhenDisabled="yes">#(loc.InstallAcceptCheckbox)</Checkbox>

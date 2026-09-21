@@ -7,7 +7,8 @@ using MaksIT.UScheduler.Shared.Helpers;
 namespace MaksIT.UScheduler.UI.Services;
 
 /// <summary>
-/// Per-user UI prefs stored in roaming AppData (not next to the exe).
+/// Per-user UI prefs stored in roaming AppData (not next to the exe), or under
+/// the portable Data folder when a portable layout is used.
 /// </summary>
 public class UISettings {
   /// <summary>
@@ -18,17 +19,19 @@ public class UISettings {
 }
 
 /// <summary>
-/// Service for loading and saving UI settings under the current user's AppData.
-/// Machine-wide schedule configuration lives in ProgramData via
-/// <see cref="ConfigurationFileService"/>.
+/// Service for loading and saving UI settings under the current user's AppData
+/// (or the portable Data folder). Machine-wide schedule configuration lives in
+/// ProgramData (or that same Data folder) via <see cref="ConfigurationFileService"/>.
 /// </summary>
 public class UISettingsService {
   public const string ProductFolder = HostPaths.ProductFolder;
 
   private readonly string _settingsFilePath;
 
-  public UISettingsService() {
-    _settingsFilePath = UserSettingsPath.Get(ProductFolder);
+  public UISettingsService(string? settingsFilePath = null) {
+    _settingsFilePath = string.IsNullOrWhiteSpace(settingsFilePath)
+      ? HostPaths.ResolveUiSettingsFile()
+      : settingsFilePath;
   }
 
   public UISettings Load() {
