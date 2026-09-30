@@ -39,6 +39,12 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.3.0" date="2026-09-30">
+      <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.3.0/CHANGELOG.md</url>
+      <description>
+        <p>Unhandled UI errors open a copyable dialog and are saved to a crash log. Windows setup keeps an existing desktop shortcut on reinstall.</p>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-09-21">
       <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.2.0/CHANGELOG.md</url>
       <description>

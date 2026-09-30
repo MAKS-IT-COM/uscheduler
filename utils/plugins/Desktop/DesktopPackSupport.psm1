@@ -323,7 +323,32 @@ function New-WixPackageXml {
     $desktopProp = $xml.CreateElement('Property', $ns)
     $null = $desktopProp.SetAttribute('Id', 'INSTALLDESKTOPSHORTCUT')
     $null = $desktopProp.SetAttribute('Value', '0')
+    $null = $desktopProp.SetAttribute('Secure', 'yes')
     $null = $package.AppendChild($desktopProp)
+
+    # Present when a previous install wrote the desktop shortcut marker.
+    # Burn also searches HKCU as the user and passes DESKTOPSHORTCUTFOUND,
+    # because a per-machine execute sequence runs as SYSTEM.
+    $foundProp = $xml.CreateElement('Property', $ns)
+    $null = $foundProp.SetAttribute('Id', 'DESKTOPSHORTCUTFOUND')
+    $null = $foundProp.SetAttribute('Secure', 'yes')
+    $foundSearch = $xml.CreateElement('RegistrySearch', $ns)
+    $null = $foundSearch.SetAttribute('Id', 'DesktopShortcutFoundSearch')
+    $null = $foundSearch.SetAttribute('Root', 'HKCU')
+    $null = $foundSearch.SetAttribute('Key', "Software\$Manufacturer\$AppName")
+    $null = $foundSearch.SetAttribute('Name', 'desktop')
+    $null = $foundSearch.SetAttribute('Type', 'raw')
+    $null = $foundProp.AppendChild($foundSearch)
+    $null = $package.AppendChild($foundProp)
+
+    # Checkbox off on reinstall must not drop an icon that is already there.
+    # Major upgrade removes the previous shortcut; this installs that one again.
+    $keepShortcut = $xml.CreateElement('SetProperty', $ns)
+    $null = $keepShortcut.SetAttribute('Id', 'INSTALLDESKTOPSHORTCUT')
+    $null = $keepShortcut.SetAttribute('Value', '1')
+    $null = $keepShortcut.SetAttribute('Before', 'CostFinalize')
+    $null = $keepShortcut.SetAttribute('Condition', 'DESKTOPSHORTCUTFOUND = "1"')
+    $null = $package.AppendChild($keepShortcut)
 
     $productFolder = Get-DesktopInstallFolderName `
         -AppName $AppName `
@@ -449,7 +474,8 @@ function New-WixPackageXml {
     $desktop = $xml.CreateElement('Component', $ns)
     $null = $desktop.SetAttribute('Id', 'DesktopShortcut')
     $null = $desktop.SetAttribute('Directory', 'DesktopFolder')
-    $null = $desktop.SetAttribute('Guid', '*')
+    $shortcutGuid = Get-DesktopShortcutComponentGuid -Manufacturer $Manufacturer -AppName $AppName
+    $null = $desktop.SetAttribute('Guid', $shortcutGuid.ToString('D'))
     $null = $desktop.SetAttribute('Condition', 'INSTALLDESKTOPSHORTCUT = 1')
     $desktopShortcut = $xml.CreateElement('Shortcut', $ns)
     $null = $desktopShortcut.SetAttribute('Id', 'AppDesktopShortcut')
@@ -461,6 +487,26 @@ function New-WixPackageXml {
     }
 
     $null = $desktop.AppendChild($desktopShortcut)
+    # Same file name is replaced. A second ".lnk" (and the "(2)" copy) is removed
+    # before CreateShortcuts so a checked box does not leave two desktop icons.
+    $cleanupNames = [System.Collections.Generic.List[string]]::new()
+    $cleanupNames.Add($productFolder)
+    if (-not $cleanupNames.Contains($AppName)) {
+        $cleanupNames.Add($AppName)
+    }
+
+    $cleanupIndex = 0
+    foreach ($shortcutName in $cleanupNames) {
+        foreach ($suffix in @('', ' (2)')) {
+            $cleanupIndex++
+            $removeLnk = $xml.CreateElement('RemoveFile', $ns)
+            $null = $removeLnk.SetAttribute('Id', "DesktopShortcutCleanup$cleanupIndex")
+            $null = $removeLnk.SetAttribute('Name', "$shortcutName$suffix.lnk")
+            $null = $removeLnk.SetAttribute('On', 'install')
+            $null = $desktop.AppendChild($removeLnk)
+        }
+    }
+
     $desktopReg = $xml.CreateElement('RegistryValue', $ns)
     $null = $desktopReg.SetAttribute('Root', 'HKCU')
     $null = $desktopReg.SetAttribute('Key', "Software\$Manufacturer\$AppName")
@@ -874,6 +920,27 @@ function Assert-FlatpakAppId {
     }
 }
 
+function Get-DesktopShortcutComponentGuid {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Manufacturer,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AppName
+    )
+
+    $identity = "maksit-desktop-shortcut|$Manufacturer|$AppName"
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $hash = $md5.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($identity))
+    }
+    finally {
+        $md5.Dispose()
+    }
+
+    return [guid]::new($hash)
+}
+
 function Get-DerivedBundleUpgradeCode {
     param(
         [Parameter(Mandatory = $true)]
@@ -1196,15 +1263,18 @@ function New-WixBundleXml {
         $folderRoot + $Manufacturer + '\' + $productFolder
     }
     $escapedFolder = [System.Security.SecurityElement]::Escape($folderPath)
+    $escapedShortcutKey = [System.Security.SecurityElement]::Escape("Software\$Manufacturer\$AppName")
 
     # WiX v7 Bundle has no Scope attribute (WIX0004). MSI Package/@Scope plus
     # InstallFolder tokens decide per-machine vs per-user; Burn infers bundle scope.
     return @"
 <?xml version="1.0" encoding="utf-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Bundle Name="$escapedName" Manufacturer="$escapedMfr" Version="$ProductVersion" UpgradeCode="$($bundleUpgrade.ToString('D'))"$iconAttr>
     <Variable Name="InstallFolder" Type="formatted" Value="$escapedFolder" bal:Overridable="yes" />
     <Variable Name="InstallDesktopShortcut" Type="numeric" Value="0" bal:Overridable="yes" />
+    <Variable Name="DesktopShortcutFound" Type="string" Value="" bal:Overridable="yes" />
+    <util:RegistrySearch Id="DesktopShortcutFoundSearch" Variable="DesktopShortcutFound" Root="HKCU" Key="$escapedShortcutKey" Value="desktop" Result="exists" />
     <BootstrapperApplication>
       <bal:WixStandardBootstrapperApplication Theme="$theme" LicenseUrl=""$logoAttrs />
     </BootstrapperApplication>
@@ -1212,6 +1282,7 @@ function New-WixBundleXml {
       <MsiPackage SourceFile="$escapedMsi" Compressed="yes" Vital="yes">
         <MsiProperty Name="INSTALLFOLDER" Value="[InstallFolder]" />
         <MsiProperty Name="INSTALLDESKTOPSHORTCUT" Value="[InstallDesktopShortcut]" />
+        <MsiProperty Name="DESKTOPSHORTCUTFOUND" Value="[DesktopShortcutFound]" />
       </MsiPackage>
     </Chain>
   </Bundle>

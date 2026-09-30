@@ -11,6 +11,12 @@
     <Setter Property="Foreground" Value="#9aa0a6" />
     <Setter Property="FontSize" Value="12" />
   </Style>
+  <Style Selector="TextBox.error-dump">
+    <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Ubuntu Mono, monospace" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Background" Value="#0E1620" />
+    <Setter Property="Foreground" Value="#E8F4FC" />
+  </Style>
   <Style Selector="TextBlock.warning">
     <Setter Property="Foreground" Value="#ff4d6d" />
     <Setter Property="FontWeight" Value="SemiBold" />

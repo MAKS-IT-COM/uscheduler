@@ -17,6 +17,13 @@ public static class UserSettingsPath {
   public static string Get(string product, string fileName = "settings.json") =>
     Combine(Environment.SpecialFolder.ApplicationData, product, fileName);
 
+  public static string LogsDirectory(string product) =>
+    Path.Combine(
+      Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+      Manufacturer,
+      product,
+      "logs");
+
   /// <summary>
   /// Machine-wide settings shared by every user and the Windows service
   /// (LocalSystem). On Windows this is all-users AppData:

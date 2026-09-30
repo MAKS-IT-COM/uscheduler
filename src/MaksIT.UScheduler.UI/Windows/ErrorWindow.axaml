@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+        x:Class="MaksIT.UScheduler.UI.Windows.ErrorWindow"
+        x:DataType="vm:ErrorReportViewModel"
+        Width="720"
+        Height="520"
+        MinWidth="480"
+        MinHeight="360"
+        CanResize="True"
+        ShowInTaskbar="True"
+        Topmost="True"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Assets/icon.ico"
+        Title="UScheduler">
+  <DockPanel Margin="16">
+    <StackPanel DockPanel.Dock="Bottom"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="8"
+                Margin="0,12,0,0">
+      <TextBlock Text="{Binding CopyStatus}"
+                 Classes="hint"
+                 VerticalAlignment="Center"
+                 Margin="0,0,8,0" />
+      <Button Content="Copy"
+              Click="OnCopyClick" />
+      <Button Content="Close"
+              Padding="16,8"
+              Click="OnCloseClick"
+              IsDefault="True"
+              IsCancel="True" />
+    </StackPanel>
+    <TextBlock DockPanel.Dock="Top"
+               Text="Something went wrong. The details below are also saved to a crash log."
+               Classes="hint"
+               TextWrapping="Wrap"
+               Margin="0,0,0,12" />
+    <TextBox Text="{Binding Report}"
+             Classes="error-dump"
+             IsReadOnly="True"
+             AcceptsReturn="True"
+             TextWrapping="NoWrap"
+             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+  </DockPanel>
+</Window>

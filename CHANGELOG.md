@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-30
+
+### Added
+
+- Unhandled UI errors open a dialog with the exception details and a **Copy** button. The same text is saved under `%AppData%\MaksIT\UScheduler\logs`.
+
+### Fixed
+
+- Windows setup keeps an existing desktop shortcut when the checkbox is off on reinstall, and removes a leftover duplicate (`UScheduler (2).lnk`) so a checked box does not leave two icons.
+
 ## [1.2.0] - 2026-09-21
 
 ### Added

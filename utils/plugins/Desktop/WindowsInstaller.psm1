@@ -13,7 +13,8 @@
     per-machine installs go to `C:\Program Files`, not Program Files (x86).
     Requires the WiX CLI (`dotnet tool install -g wix`). WiX v7: accept the
     OSMF EULA (`wix eula accept wix7` or `-acceptEula wix7`) and
-    `wix extension add -g WixToolset.BootstrapperApplications.wixext`.
+    `wix extension add -g WixToolset.BootstrapperApplications.wixext` and
+    `wix extension add -g WixToolset.Util.wixext`.
     Reopen the shell so `%USERPROFILE%\.dotnet\tools` is on PATH.
 #>
 
@@ -40,7 +41,7 @@ function Test-WixMissingException {
 }
 
 function Get-WixMissingInstallMessage {
-    return "WiX CLI ('wix') is not on PATH. Install with: dotnet tool install -g wix. For WiX v7 also run: wix eula accept wix7; wix extension add -g WixToolset.BootstrapperApplications.wixext. Reopen the terminal so %USERPROFILE%\.dotnet\tools is on PATH."
+    return "WiX CLI ('wix') is not on PATH. Install with: dotnet tool install -g wix. For WiX v7 also run: wix eula accept wix7; wix extension add -g WixToolset.BootstrapperApplications.wixext; wix extension add -g WixToolset.Util.wixext. Reopen the terminal so %USERPROFILE%\.dotnet\tools is on PATH."
 }
 
 function Get-WixCliVersionText {
@@ -280,7 +281,7 @@ function Invoke-Plugin {
 
     Write-Log -Level "STEP" -Message "Building Windows installer exe ($wixArch)..."
     try {
-        Invoke-ExternalCommand -Name wix -ArgumentList (@('build') + $eulaArgs + $archArgs + @($bundleWxsPath, '-ext', $bundleExt, '-o', $exePath)) | Out-Null
+        Invoke-ExternalCommand -Name wix -ArgumentList (@('build') + $eulaArgs + $archArgs + @($bundleWxsPath, '-ext', $bundleExt, '-ext', 'WixToolset.Util.wixext', '-o', $exePath)) | Out-Null
     }
     catch {
         if (Test-WixMissingException -ErrorRecord $_) {
