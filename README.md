@@ -10,7 +10,7 @@
 A modern scheduler built on **.NET 10** for running PowerShell scripts and console applications on **Windows and Linux**.
 Designed for system administrators — and also for those who *feel like* system administrators — who need a predictable, resilient, and secure background execution environment.
 
-> **Tip:** A graphical [UScheduler UI](#uscheduler-ui) is included for service registration, script scheduling, and log viewing — no command-line required.
+> **Tip:** Open [UScheduler](#uscheduler-ui) for service registration, script scheduling, and log viewing. The same program runs as the Windows service or systemd unit.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and release workflow.
 
@@ -94,7 +94,7 @@ The Windows setup exe lets you choose **Standard** or **Portable**.
 
 | Location | Purpose | Who can write |
 |----------|---------|----------------|
-| `C:\Program Files\MaksIT\UScheduler` | Worker (`MaksIT.UScheduler.exe`) and UI (`MaksIT.UScheduler.UI.exe`) | Administrators |
+| `C:\Program Files\MaksIT\UScheduler` | `MaksIT.UScheduler.UI.exe` (window, and the service when started with `--service`) | Administrators |
 | `C:\MaksIT\Scripts` | Scheduled scripts (all users). The Windows setup exe (and `--install` / `--prepare-data`) copies bundled examples only into missing folders; existing scripts are never overwritten. | Users (after install) |
 | `C:\MaksIT\Logs` | Service and script logs | Users (after install) |
 | `%ProgramData%\MaksIT\UScheduler\settings.json` | Shared schedule configuration | Users (after install) |
@@ -104,7 +104,7 @@ The Windows setup exe lets you choose **Standard** or **Portable**.
 
 | Location | Purpose |
 |----------|---------|
-| *Install folder* (you choose it) | Worker and UI |
+| *Install folder* (you choose it) | `MaksIT.UScheduler.UI.exe` |
 | *Install folder*`\Scripts` | Scheduled scripts |
 | *Install folder*`\Logs` | Service and script logs |
 | *Install folder*`\Data\settings.json` | Shared schedule configuration |
@@ -112,42 +112,43 @@ The Windows setup exe lets you choose **Standard** or **Portable**.
 
 A `portable` file in that folder (or a parent folder) marks the layout. Pick a writable location such as `C:\MaksIT\UScheduler` if you do not want Program Files. The Users group is granted modify rights on `Scripts`, `Logs`, and `Data` so the UI can stay unelevated.
 
-The Windows setup exe, registering the service, or `MaksIT.UScheduler --prepare-data` creates the data folders, copies bundled example scripts when missing, and grants the Users group modify rights so the UI can stay unelevated. Add `--portable` to keep data next to the binaries instead of `C:\MaksIT` and ProgramData.
+The Windows setup exe, registering the service, or `MaksIT.UScheduler.UI --prepare-data` creates the data folders, copies bundled example scripts when missing, and grants the Users group modify rights so the window can stay unelevated. Add `--portable` to keep data next to the program instead of `C:\MaksIT` and ProgramData.
 
 ### Using CLI Commands
 
 The executable includes built-in service management commands. Run as Administrator (Windows) or root (Linux):
 
 ```powershell
-# Install the service (auto-start / systemd enable)
-MaksIT.UScheduler --install
+# Install the service (auto-start / systemd enable). The service runs this program with --service.
+MaksIT.UScheduler.UI --install
 
 # Start the service
-MaksIT.UScheduler --start
+MaksIT.UScheduler.UI --start
 
 # Check service status
-MaksIT.UScheduler --status
+MaksIT.UScheduler.UI --status
 
 # Stop the service
-MaksIT.UScheduler --stop
+MaksIT.UScheduler.UI --stop
 
 # Uninstall the service
-MaksIT.UScheduler --uninstall
+MaksIT.UScheduler.UI --uninstall
 
 # Show help
-MaksIT.UScheduler --help
+MaksIT.UScheduler.UI --help
 
 # Create data folders and ACLs without installing the service
-MaksIT.UScheduler --prepare-data
+MaksIT.UScheduler.UI --prepare-data
 
 # Portable layout: scripts, logs, and settings next to the executable
-MaksIT.UScheduler --prepare-data --portable
+MaksIT.UScheduler.UI --prepare-data --portable
 ```
 
-On Windows the file is `MaksIT.UScheduler.exe`.
+On Windows the file is `MaksIT.UScheduler.UI.exe`. With no arguments it opens the window.
 
 | Command | Short | Description |
 |---------|-------|-------------|
+| `--service` | | Run the scheduler. Windows SCM and systemd use this; it does not open a window |
 | `--install` | `-i` | Install the service (Windows SCM or systemd) |
 | `--uninstall` | `-u` | Stop and remove the service |
 | `--start` | | Start the service |
@@ -164,7 +165,7 @@ On Windows the file is `MaksIT.UScheduler.exe`.
 Alternatively, use Windows Service Control Manager directly:
 
 ```powershell
-sc.exe create "MaksIT.UScheduler" binPath= "C:\Path\To\MaksIT.UScheduler.exe" start= auto
+sc.exe create "MaksIT.UScheduler" binPath= "\"C:\Path\To\MaksIT.UScheduler.UI.exe\" --service" start= auto
 sc.exe start "MaksIT.UScheduler"
 ```
 
@@ -188,11 +189,11 @@ sc.exe delete "MaksIT.UScheduler"
 
 ## UScheduler UI
 
-The UI is an **Avalonia** desktop app (Windows and Linux) for service registration, script schedules, and log viewing. Launch `MaksIT.UScheduler.UI.exe` from Program Files — it runs **without** administrator rights. Register, start, stop, and unregister prompt for elevation in place; the window stays open.
+UScheduler is an **Avalonia** desktop app (Windows and Linux) for service registration, script schedules, and log viewing. Launch `MaksIT.UScheduler.UI.exe` from Program Files — the window runs **without** administrator rights. Register, start, stop, and unregister prompt for elevation in place; the window stays open. The installed service is this same program, started with `--service`. After an upgrade, What's New lists additions since the version you last opened.
 
 ### Getting Started
 
-When you unpack the portable zip, launch `MaksIT.UScheduler.UI.exe` (or `Start-UScheduler.bat`). The zip is a portable layout: scripts, logs, and settings stay in the extracted folder. GitHub releases also ship a Windows setup exe (worker + UI; choose Standard or Portable on the install page) and a Flatpak of the UI.
+When you unpack the portable zip, launch `MaksIT.UScheduler.UI.exe` (or `Start-UScheduler.bat`). The zip is a portable layout: scripts, logs, and settings stay in the extracted folder. GitHub releases also ship a Windows setup exe (choose Standard or Portable on the install page) and a Flatpak of the window.
 
 #### Linux (Flatpak)
 
@@ -216,7 +217,7 @@ The previous id `com.maks_it.UScheduler` is replaced by this lowercase id. Unins
 
 If GNOME or KDE does not show a launcher icon, `flatpak run` may warn that `/var/lib/flatpak/exports/share` and `~/.local/share/flatpak/exports/share` are not on `XDG_DATA_DIRS`. Log out and back in once so the session picks up those paths.
 
-Linux uses X11/XWayland (Avalonia native Wayland still hangs on GNOME). The sandbox grants `--filesystem=home` for scripts and logs. The Flatpak is the UI; the worker is a separate Linux systemd install. AppStream and the desktop file live in [`data/`](data/).
+Linux uses X11/XWayland (Avalonia native Wayland still hangs on GNOME). The sandbox grants `--filesystem=home` for scripts and logs. The Flatpak is the window; register the same program with systemd on the host when it should run at boot. AppStream and the desktop file live in [`data/`](data/).
 
 ![Manager launcher](./assets/explorer_6Ai8GBZ7xg.png)
 
@@ -230,7 +231,7 @@ The Settings view is your starting point for configuring UScheduler.
 
 | Feature | Description |
 |---------|-------------|
-| **Service Bin Path** | Path to the worker folder (auto-detected from Program Files, the UI directory, or a portable folder; override stored in `%AppData%/MaksIT/UScheduler/settings.json` or `Data\ui-settings.json` when portable) |
+| **Service Bin Path** | Folder that contains `MaksIT.UScheduler.UI` (auto-detected from Program Files or a portable folder; override stored in `%AppData%/MaksIT/UScheduler/settings.json` or `Data\ui-settings.json` when portable) |
 | **Service Status** | Real-time status indicator (Running, Stopped, Starting, Stopping, Paused, Not Installed) |
 | **Register/Unregister** | Install or remove the Windows service or systemd unit (UAC / polkit prompt, UI stays open) |
 | **Start/Stop** | Control the service state (same in-app elevation) |
@@ -269,7 +270,7 @@ The Main view allows you to manage script schedules and execution settings.
 **Actions:**
 - **Save** — Persist schedule changes to `scriptsettings.json`
 - **Revert** — Discard unsaved changes
-- **Launch** — Execute the script immediately via its `.bat` file
+- **Launch** — Ask the running service to start the script now. The window does not need administrator rights.
 
 **Script Status:**
 - View lock file status (indicates if script is currently running)
@@ -306,7 +307,7 @@ Features:
 
 ### Machine-wide `settings.json`
 
-Host logging (log levels, Event Log source) stays in shipped `appsettings.json` next to `MaksIT.UScheduler.exe`. Schedule configuration is **not** written there — a leftover `Configuration` block is copied once into the machine-wide file:
+Host logging (log levels, Event Log source) stays in shipped `appsettings.json` next to `MaksIT.UScheduler.UI.exe`. Schedule configuration is **not** written there — a leftover `Configuration` block is copied once into the machine-wide file:
 
 `%ProgramData%\MaksIT\UScheduler\settings.json` (standard) or `{install folder}\Data\settings.json` (portable)
 
@@ -340,7 +341,7 @@ Paths can be either absolute or relative:
 | Absolute | `C:\MaksIT\Scripts\backup.ps1` | `C:\MaksIT\Scripts\backup.ps1` |
 | Relative | `File-Sync\file-sync.ps1` | `{ScriptsDir}\File-Sync\file-sync.ps1` (`C:\MaksIT\Scripts` by default) |
 
-Relative **script** paths are resolved against `ScriptsDir`. Relative **process** paths are still resolved against the worker's install directory.
+Relative **script** paths are resolved against `ScriptsDir`. Relative **process** paths are still resolved against the install directory.
 
 ### Log Levels
 
@@ -363,7 +364,7 @@ The `"Default": "Information"` setting controls the minimum severity of messages
 | `Path` | string | required | Path to `.ps1` file (absolute or relative) |
 | `Name` | string | optional | Display name in the UI |
 | `Description` | string | optional | Short text under the name in the script list |
-| `Platforms` | string[] | empty (all) | `Windows` and/or `Linux`. Empty = both. The worker skips scripts that do not match the host; the list grays them out. |
+| `Platforms` | string[] | empty (all) | `Windows` and/or `Linux`. Empty = both. The service skips scripts that do not match the host; the list grays them out. |
 | `IsSigned` | bool | `true` | `true` enforces AllSigned, `false` runs unrestricted |
 | `Disabled` | bool | `false` | `true` skips this script during execution |
 

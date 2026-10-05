@@ -1,14 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema",
   "title": "MaksIT.UScheduler Release Script Settings",
-  "description": "Community desktop pipeline. GitHub assets are siblings: portable zip (win-x64 worker, UI, Scripts, portable marker), Windows setup exe (Avalonia UI; Standard or Portable layout), Flatpak (Avalonia UI). The zip never contains the installer or Flatpak.",
+  "description": "Community desktop pipeline. GitHub assets are siblings: portable zip (win-x64 UI, which also runs as the service, Scripts, portable marker), Windows setup exe (Avalonia UI; Standard or Portable layout), Flatpak (Avalonia UI). The zip never contains the installer or Flatpak. MsixPack writes a Store .msix that stays in releases/ and is not a GitHub asset.",
   "plugins": [
     {
       "name": "DotNetReleaseVersion",
       "stageLabel": "build",
       "enabled": true,
       "projectFiles": [
-        "..\\..\\..\\src\\MaksIT.UScheduler\\MaksIT.UScheduler.csproj",
         "..\\..\\..\\src\\MaksIT.UScheduler.UI\\MaksIT.UScheduler.UI.csproj"
       ]
     },
@@ -26,7 +25,6 @@
       "coverageThreshold": 0,
       "failOnVulnerabilities": true,
       "projectFiles": [
-        "..\\..\\..\\src\\MaksIT.UScheduler\\MaksIT.UScheduler.csproj",
         "..\\..\\..\\src\\MaksIT.UScheduler.UI\\MaksIT.UScheduler.UI.csproj"
       ]
     },
@@ -35,7 +33,6 @@
       "stageLabel": "build",
       "enabled": true,
       "projectFiles": [
-        "..\\..\\..\\src\\MaksIT.UScheduler\\MaksIT.UScheduler.csproj",
         "..\\..\\..\\src\\MaksIT.UScheduler.UI\\MaksIT.UScheduler.UI.csproj"
       ],
       "artifactsDir": "..\\..\\..\\releases",
@@ -56,7 +53,7 @@
       "projects": {
         "uiAppSettingsFile": "appsettings.json",
         "uschedulerAppSettingsFile": "appsettings.json",
-        "uiServiceBinPath": "..\\MaksIT.UScheduler",
+        "uiServiceBinPath": ".",
         "uschedulerLogDir": "..\\Logs",
         "scriptsRelativeToExe": "..\\Scripts"
       }
@@ -81,8 +78,23 @@
       "installFolderName": "UScheduler",
       "iconPath": "..\\..\\..\\src\\MaksIT.UScheduler.UI\\Assets\\icon.ico",
       "exeNamePattern": "maksit-uscheduler-{version}.exe",
-      "postInstallExecutableName": "MaksIT.UScheduler.exe",
+      "postInstallExecutableName": "MaksIT.UScheduler.UI.exe",
       "postInstallArguments": "--prepare-data"
+    },
+    {
+      "name": "MsixPack",
+      "stageLabel": "build",
+      "enabled": true,
+      "packageName": "MAKS-IT.UScheduler",
+      "publisher": "CN=FCC8C0E7-6D5F-4028-B8EE-903B88C0C8F9",
+      "publisherDisplayName": "MaksIT",
+      "displayName": "UScheduler",
+      "description": "Schedule PowerShell scripts and console processes.",
+      "executableName": "MaksIT.UScheduler.UI.exe",
+      "runtimeIdentifier": "win-x64",
+      "publishDir": "..\\..\\..\\releases\\installer-payload",
+      "iconPath": "..\\..\\..\\src\\MaksIT.UScheduler.UI\\Assets\\icon.png",
+      "msixNamePattern": "maksit-uscheduler-{version}.msix"
     },
     {
       "name": "FlatpakPack",
@@ -150,7 +162,8 @@
       "excludePatterns": [
         "*.zip",
         "*.exe",
-        "*.flatpak"
+        "*.flatpak",
+        "*.msix"
       ]
     }
   ],

@@ -6,10 +6,9 @@
     Stages Scripts and release appsettings into DotNetPublish RID folders.
 
 .DESCRIPTION
-    Does not publish. Copies src/Scripts into each MaksIT.UScheduler RID output,
-    rewrites worker seed appsettings for the bundled layout, and
-    writes Windows/Linux launchers. The portable zip is the win-x64 bundle folder
-    A flat installer payload (worker + UI + Scripts) is staged for WiX.
+    Does not publish. Copies src/Scripts beside the UI publish, writes the
+    portable launchers, and stages a flat installer payload (UI + Scripts)
+    for the Windows setup exe and the Store MSIX.
 #>
 
 if (-not (Get-Command Import-PluginDependency -ErrorAction SilentlyContinue)) {
@@ -123,10 +122,9 @@ function Invoke-Plugin {
         Join-Path $sharedSettings.artifactsDirectory "bundle"
     }
 
-    $workerWin = Get-PublishOutputInternal -Outputs $outputs -ProjectName 'MaksIT.UScheduler' -RuntimeIdentifier 'win-x64'
     $uiWin = Get-PublishOutputInternal -Outputs $outputs -ProjectName 'MaksIT.UScheduler.UI' -RuntimeIdentifier 'win-x64'
-    if ($null -eq $workerWin -or $null -eq $uiWin) {
-        throw "BundleCustomization expected win-x64 publish folders for MaksIT.UScheduler and MaksIT.UScheduler.UI."
+    if ($null -eq $uiWin) {
+        throw "BundleCustomization expected a win-x64 publish folder for MaksIT.UScheduler.UI."
     }
 
     Write-Log -Level "STEP" -Message "Preparing portable win-x64 bundle with Scripts..."
@@ -135,10 +133,8 @@ function Invoke-Plugin {
         Remove-Item -Path $bundleDirectory -Recurse -Force
     }
 
-    $workerDest = Join-Path $bundleDirectory "MaksIT.UScheduler"
     $uiDest = Join-Path $bundleDirectory "MaksIT.UScheduler.UI"
-    New-Item -ItemType Directory -Path $workerDest, $uiDest | Out-Null
-    Copy-Item -Path (Join-Path ([string]$workerWin.directory) '*') -Destination $workerDest -Recurse -Force
+    New-Item -ItemType Directory -Path $uiDest | Out-Null
     Copy-Item -Path (Join-Path ([string]$uiWin.directory) '*') -Destination $uiDest -Recurse -Force
 
     $scriptsDestination = Join-Path $bundleDirectory "Scripts"
@@ -146,7 +142,7 @@ function Invoke-Plugin {
     Write-Log -Level "OK" -Message "  Scripts copied: $scriptsDestination"
 
     foreach ($linuxOut in @(
-            Get-PublishOutputInternal -Outputs $outputs -ProjectName 'MaksIT.UScheduler' -RuntimeIdentifier 'linux-x64'
+            Get-PublishOutputInternal -Outputs $outputs -ProjectName 'MaksIT.UScheduler.UI' -RuntimeIdentifier 'linux-x64'
         )) {
         if ($null -eq $linuxOut) {
             continue
@@ -184,7 +180,7 @@ function Invoke-Plugin {
             }
         }
 
-        $uSchedulerAppSettingsPath = Join-Path $workerDest ([string]$projectConfig.uschedulerAppSettingsFile)
+        $uSchedulerAppSettingsPath = Join-Path $uiDest ([string]$projectConfig.uschedulerAppSettingsFile)
         if (Test-Path $uSchedulerAppSettingsPath -PathType Leaf) {
             $uSchedulerAppSettings = Get-Content $uSchedulerAppSettingsPath -Raw | ConvertFrom-Json
             if (-not $uSchedulerAppSettings.PSObject.Properties['Configuration'] -or $null -eq $uSchedulerAppSettings.Configuration) {
@@ -256,14 +252,13 @@ exec "$DIR/MaksIT.UScheduler.UI/MaksIT.UScheduler.UI" "$@"
         Join-Path $sharedSettings.artifactsDirectory "installer-payload"
     }
 
-    Write-Log -Level "STEP" -Message "Preparing per-machine installer payload (worker + UI + Scripts)..."
+    Write-Log -Level "STEP" -Message "Preparing per-machine installer payload (UI + Scripts)..."
     if (Test-Path $installerPayload) {
         Remove-Item -Path $installerPayload -Recurse -Force
     }
 
     New-Item -ItemType Directory -Path $installerPayload | Out-Null
     Copy-Item -Path (Join-Path ([string]$uiWin.directory) '*') -Destination $installerPayload -Recurse -Force
-    Copy-Item -Path (Join-Path ([string]$workerWin.directory) '*') -Destination $installerPayload -Recurse -Force
     $payloadScripts = Join-Path $installerPayload "Scripts"
     if (Test-Path -LiteralPath $payloadScripts) {
         Remove-Item -LiteralPath $payloadScripts -Recurse -Force

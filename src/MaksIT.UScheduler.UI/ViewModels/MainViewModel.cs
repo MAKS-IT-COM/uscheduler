@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -54,7 +53,28 @@ public partial class MainViewModel : ObservableObject {
     RefreshScripts();
     RefreshServiceStatus();
     RefreshServiceLogs();
+
+    ScriptsPage = new ScriptsPage(this);
+    LogsPage = new LogsPage(this);
+    SettingsPage = new SettingsPage(this);
+    Pages = [ScriptsPage, LogsPage, SettingsPage];
   }
+
+  public ScriptsPage ScriptsPage { get; }
+
+  public LogsPage LogsPage { get; }
+
+  public SettingsPage SettingsPage { get; }
+
+  public IReadOnlyList<IShellPage> Pages { get; }
+
+  [ObservableProperty]
+  private int selectedPageIndex;
+
+  public IShellPage ActivePage => Pages[SelectedPageIndex];
+
+  partial void OnSelectedPageIndexChanged(int value) =>
+    OnPropertyChanged(nameof(ActivePage));
 
   private void OnScheduleOptionChanged(object? sender, PropertyChangedEventArgs e) {
     if (e.PropertyName == nameof(MonthOption.IsChecked))
@@ -84,7 +104,7 @@ public partial class MainViewModel : ObservableObject {
 
     if (!sharedExists && !seedExists) {
       _serviceConfig = null;
-      AppSettingsLoadError = "Set Service Bin Path to the worker folder (seed appsettings.json), or register the service to create shared settings.";
+      AppSettingsLoadError = "Set Service Bin Path to the install folder (seed appsettings.json), or register the service to create shared settings.";
       ServiceName = string.Empty;
       LogDirectory = string.Empty;
       ScriptsDirectory = HostPaths.ResolveScriptsDirectory(startDirectory: bin);
@@ -206,7 +226,7 @@ public partial class MainViewModel : ObservableObject {
     if (string.IsNullOrWhiteSpace(ResolvedExecutablePath) || !File.Exists(ResolvedExecutablePath)) {
       await _dialogs.ShowMessageAsync(
         "Register Service",
-        "Could not find MaksIT.UScheduler.exe. Set Service Bin Path to the worker install folder.");
+        $"Could not find {HostServiceManager.GetExecutableFileName()}. Set Service Bin Path to the install folder.");
       return;
     }
 
@@ -411,62 +431,14 @@ public partial class MainViewModel : ObservableObject {
     if (SelectedScript == null)
       return;
 
-    var scriptDir = Path.GetDirectoryName(SelectedScript.FilePath);
-    if (string.IsNullOrEmpty(scriptDir) || !Directory.Exists(scriptDir)) {
-      await _dialogs.ShowMessageAsync("Launch Script", "Script directory not found.");
+    var path = SelectedScript.ConfigScriptPath;
+    if (string.IsNullOrWhiteSpace(path)) {
+      await _dialogs.ShowMessageAsync("Launch Script", "This script is not in the service configuration.");
       return;
     }
 
-    try {
-      var startInfo = ResolveLaunchStartInfo(scriptDir);
-      if (startInfo is null) {
-        await _dialogs.ShowMessageAsync(
-          "Launch Script",
-          $"No .bat, .sh, or .ps1 launcher found in:{Environment.NewLine}{scriptDir}");
-        return;
-      }
-
-      Process.Start(startInfo);
-    }
-    catch (Exception ex) {
-      await _dialogs.ShowMessageAsync("Launch Script", $"Failed to launch script: {ex.Message}");
-    }
-  }
-
-  private static ProcessStartInfo? ResolveLaunchStartInfo(string scriptDir) {
-    if (OperatingSystem.IsWindows()) {
-      var bat = Directory.GetFiles(scriptDir, "*.bat").FirstOrDefault();
-      if (bat is not null) {
-        return new ProcessStartInfo {
-          FileName = bat,
-          WorkingDirectory = scriptDir,
-          UseShellExecute = true
-        };
-      }
-    }
-    else {
-      var sh = Directory.GetFiles(scriptDir, "*.sh").FirstOrDefault();
-      if (sh is not null) {
-        return new ProcessStartInfo {
-          FileName = "bash",
-          Arguments = sh,
-          WorkingDirectory = scriptDir,
-          UseShellExecute = false
-        };
-      }
-    }
-
-    var ps1 = Directory.GetFiles(scriptDir, "*.ps1").FirstOrDefault();
-    if (ps1 is null)
-      return null;
-
-    var shell = OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh";
-    return new ProcessStartInfo {
-      FileName = shell,
-      Arguments = $"-NoProfile -File \"{ps1}\"",
-      WorkingDirectory = scriptDir,
-      UseShellExecute = false
-    };
+    var result = await ScriptRunChannel.RequestAsync(path);
+    await _dialogs.ShowMessageAsync("Launch Script", result.Message);
   }
 
   private bool CanLaunchScript() =>

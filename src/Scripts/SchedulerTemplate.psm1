@@ -174,15 +174,15 @@ function Test-ScheduledExecution {
             Write-Log "Execution skipped due to schedule." -Automated:$Automated -Level Warning
             $shouldRun = $false
         }
-    }
 
-    if ($shouldRun -and $LastRunFilePath -and (Test-Path $LastRunFilePath)) {
-        $lastRun = Get-Content $LastRunFilePath | Select-Object -First 1
-        if ($lastRun) {
-            [datetime]$lr = $lastRun
-            if (-not (Test-Interval -LastRun $lr -Now $now -MinIntervalMinutes $Config.MinIntervalMinutes)) {
-                Write-Log "Last run at $lr. Interval not reached." -Automated:$Automated -Level Warning
-                $shouldRun = $false
+        if ($shouldRun -and $LastRunFilePath -and (Test-Path $LastRunFilePath)) {
+            $lastRun = Get-Content $LastRunFilePath | Select-Object -First 1
+            if ($lastRun) {
+                [datetime]$lr = $lastRun
+                if (-not (Test-Interval -LastRun $lr -Now $now -MinIntervalMinutes $Config.MinIntervalMinutes)) {
+                    Write-Log "Last run at $lr. Interval not reached." -Automated:$Automated -Level Warning
+                    $shouldRun = $false
+                }
             }
         }
     }

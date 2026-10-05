@@ -1,0 +1,130 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+             xmlns:controls="using:MaksIT.UScheduler.UI.Controls"
+             xmlns:local="using:MaksIT.UScheduler.UI"
+             x:Class="MaksIT.UScheduler.UI.Views.ScriptsView"
+             x:DataType="vm:MainViewModel">
+  <UserControl.Resources>
+    <local:NamedColorBrushConverter x:Key="NamedColorBrush" />
+  </UserControl.Resources>
+  <Grid ColumnDefinitions="280,*">
+    <controls:GroupBox Header="Scripts">
+      <ListBox ItemsSource="{Binding Scripts}"
+               SelectedItem="{Binding SelectedScript}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Margin="0,4" Opacity="{Binding ListOpacity}">
+              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding ListDescription}"
+                         Classes="hint"
+                         Margin="0,2,0,0"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </controls:GroupBox>
+
+    <Grid Grid.Column="1" RowDefinitions="Auto,*">
+      <controls:GroupBox Header="Script Status"
+                         IsVisible="{Binding HasSelectedScript}">
+        <Grid RowDefinitions="Auto,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Last Run:" FontWeight="Bold" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding CurrentScriptStatus.LastRunDisplay, FallbackValue=Never}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,16,0" />
+            <TextBlock Text="Status:" FontWeight="Bold" VerticalAlignment="Center" />
+            <Ellipse Width="10"
+                     Height="10"
+                     VerticalAlignment="Center"
+                     Fill="{Binding LockStatusColor, Converter={StaticResource NamedColorBrush}}" />
+            <TextBlock Text="{Binding CurrentScriptStatus.StatusDisplay, FallbackValue=Ready}"
+                       VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel Grid.Row="1"
+                      Orientation="Horizontal"
+                      Margin="0,8,0,0"
+                      Spacing="8">
+            <TextBlock Text="Name:" VerticalAlignment="Center" FontWeight="Bold" />
+            <TextBox Text="{Binding ScriptName}"
+                     MinWidth="180"
+                     VerticalAlignment="Center"
+                     PlaceholderText="Display name" />
+            <CheckBox Content="Require signed script"
+                      IsChecked="{Binding ScriptIsSigned}"
+                      Margin="12,0,0,0" />
+            <CheckBox Content="Disabled"
+                      IsChecked="{Binding ScriptDisabled}"
+                      Margin="12,0,0,0" />
+          </StackPanel>
+        </Grid>
+      </controls:GroupBox>
+
+      <controls:GroupBox Grid.Row="1" Header="Schedule Settings">
+        <Grid IsVisible="{Binding HasSelectedScript}"
+              RowDefinitions="Auto,Auto,Auto,*">
+          <controls:GroupBox Header="Months (empty = all months)">
+            <ItemsControl ItemsSource="{Binding MonthOptions}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <CheckBox Content="{Binding Name}"
+                            IsChecked="{Binding IsChecked}"
+                            Margin="4,2" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </controls:GroupBox>
+
+          <controls:GroupBox Grid.Row="1" Header="Weekdays (empty = all days)">
+            <ItemsControl ItemsSource="{Binding WeekdayOptions}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <CheckBox Content="{Binding Name}"
+                            IsChecked="{Binding IsChecked}"
+                            Margin="4,2" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </controls:GroupBox>
+
+          <controls:GroupBox Grid.Row="2" Header="Run Times (UTC)">
+            <Grid RowDefinitions="Auto,80">
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBox Text="{Binding NewRunTime}"
+                         Width="80"
+                         VerticalAlignment="Center" />
+                <Button Content="Add" Command="{Binding AddRunTimeCommand}" MinWidth="60" />
+                <Button Content="Remove" Command="{Binding RemoveRunTimeCommand}" MinWidth="60" />
+              </StackPanel>
+              <ListBox Grid.Row="1"
+                       ItemsSource="{Binding RunTimes}"
+                       SelectedItem="{Binding SelectedRunTime}" />
+            </Grid>
+          </controls:GroupBox>
+
+          <controls:GroupBox Grid.Row="3" Header="Minimum Interval">
+            <StackPanel Orientation="Horizontal">
+              <TextBox Text="{Binding MinIntervalMinutes}"
+                       Width="60"
+                       VerticalAlignment="Center" />
+              <TextBlock Text=" minutes between executions" VerticalAlignment="Center" Margin="8,0,0,0" />
+            </StackPanel>
+          </controls:GroupBox>
+        </Grid>
+      </controls:GroupBox>
+    </Grid>
+  </Grid>
+</UserControl>

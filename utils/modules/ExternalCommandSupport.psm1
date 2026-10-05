@@ -27,6 +27,10 @@ function Clear-ExternalCommandTestHandler {
     $script:ExternalCommandTestHandler = $null
 }
 
+function Test-ExternalCommandTestHandler {
+    return ($null -ne $script:ExternalCommandTestHandler)
+}
+
 function Set-ExternalCommandAvailability {
     param(
         [Parameter(Mandatory = $true)]
@@ -128,4 +132,5 @@ Export-ModuleMember -Function `
     Invoke-ExternalCommand, `
     Set-ExternalCommandTestHandler, `
     Clear-ExternalCommandTestHandler, `
+    Test-ExternalCommandTestHandler, `
     Set-ExternalCommandAvailability

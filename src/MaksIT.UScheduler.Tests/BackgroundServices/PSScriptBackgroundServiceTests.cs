@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
-using MaksIT.UScheduler;
 using MaksIT.UScheduler.Shared;
 using MaksIT.UScheduler.Services;
 using MaksIT.UScheduler.BackgroundServices;
@@ -41,7 +40,7 @@ public class PSScriptBackgroundServiceTests {
 
     // Assert
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>(), true),
       Times.Never);
   }
 
@@ -63,7 +62,7 @@ public class PSScriptBackgroundServiceTests {
 
     // Assert
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>(), true),
       Times.Never);
   }
 
@@ -83,7 +82,7 @@ public class PSScriptBackgroundServiceTests {
 
     // Assert
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>(), true),
       Times.Never);
   }
 
@@ -113,7 +112,7 @@ public class PSScriptBackgroundServiceTests {
     using var cts = new CancellationTokenSource();
 
     _psScriptServiceMock
-      .Setup(x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+      .Setup(x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>(), true))
       .Returns(Task.CompletedTask);
 
     // Act
@@ -130,7 +129,7 @@ public class PSScriptBackgroundServiceTests {
 
     // Assert
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(@"C:\Scripts\test.ps1", true, It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(@"C:\Scripts\test.ps1", true, It.IsAny<CancellationToken>(), true),
       Times.AtLeastOnce);
   }
 
@@ -147,7 +146,7 @@ public class PSScriptBackgroundServiceTests {
     using var cts = new CancellationTokenSource();
 
     _psScriptServiceMock
-      .Setup(x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+      .Setup(x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>(), true))
       .Returns(Task.CompletedTask);
 
     // Act
@@ -164,7 +163,7 @@ public class PSScriptBackgroundServiceTests {
 
     // Assert - verify IsSigned=false was passed
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(@"C:\Scripts\test.ps1", false, It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(@"C:\Scripts\test.ps1", false, It.IsAny<CancellationToken>(), true),
       Times.AtLeastOnce);
   }
 
@@ -183,7 +182,7 @@ public class PSScriptBackgroundServiceTests {
     using var cts = new CancellationTokenSource();
 
     _psScriptServiceMock
-      .Setup(x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+      .Setup(x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>(), true))
       .Returns(Task.CompletedTask);
 
     // Act
@@ -200,13 +199,13 @@ public class PSScriptBackgroundServiceTests {
 
     // Assert - only enabled scripts should run
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(@"C:\Scripts\script1.ps1", It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(@"C:\Scripts\script1.ps1", It.IsAny<bool>(), It.IsAny<CancellationToken>(), true),
       Times.AtLeastOnce);
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(@"C:\Scripts\script2.ps1", It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(@"C:\Scripts\script2.ps1", It.IsAny<bool>(), It.IsAny<CancellationToken>(), true),
       Times.Never);
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(@"C:\Scripts\script3.ps1", It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(@"C:\Scripts\script3.ps1", It.IsAny<bool>(), It.IsAny<CancellationToken>(), true),
       Times.AtLeastOnce);
   }
 
@@ -230,7 +229,7 @@ public class PSScriptBackgroundServiceTests {
     await service.StartAsync(cts.Token);
 
     _psScriptServiceMock.Verify(
-      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      x => x.RunScriptAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>(), true),
       Times.Never);
   }
 }

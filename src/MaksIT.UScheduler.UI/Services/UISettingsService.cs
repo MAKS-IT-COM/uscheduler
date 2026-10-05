@@ -12,10 +12,15 @@ namespace MaksIT.UScheduler.UI.Services;
 /// </summary>
 public class UISettings {
   /// <summary>
-  /// Path to the MaksIT.UScheduler bin folder containing the worker executable.
+  /// Folder that contains MaksIT.UScheduler.UI.
   /// Empty means auto-detect (same folder, Program Files, or sibling project).
   /// </summary>
   public string ServiceBinPath { get; set; } = string.Empty;
+
+  /// <summary>
+  /// Last version whose What's New notes the user chose not to show again.
+  /// </summary>
+  public string? WhatsNewSeenVersion { get; set; }
 }
 
 /// <summary>
@@ -28,6 +33,8 @@ public class UISettingsService {
 
   private readonly string _settingsFilePath;
 
+  public bool FileExisted { get; private set; }
+
   public UISettingsService(string? settingsFilePath = null) {
     _settingsFilePath = string.IsNullOrWhiteSpace(settingsFilePath)
       ? HostPaths.ResolveUiSettingsFile()
@@ -36,7 +43,8 @@ public class UISettingsService {
 
   public UISettings Load() {
     try {
-      if (!File.Exists(_settingsFilePath))
+      FileExisted = File.Exists(_settingsFilePath);
+      if (!FileExisted)
         return new UISettings { ServiceBinPath = HostPaths.DetectServiceBinPath() };
 
       var json = File.ReadAllText(_settingsFilePath);
@@ -49,7 +57,8 @@ public class UISettingsService {
       return new UISettings {
         ServiceBinPath = string.IsNullOrWhiteSpace(saved)
           ? HostPaths.DetectServiceBinPath()
-          : saved
+          : saved,
+        WhatsNewSeenVersion = settingsNode?["WhatsNewSeenVersion"]?.GetValue<string>()
       };
     }
     catch {
@@ -72,9 +81,11 @@ public class UISettingsService {
         doc = new JsonObject();
       }
 
-      doc["USchedulerSettings"] = new JsonObject {
-        ["ServiceBinPath"] = settings.ServiceBinPath
-      };
+      var node = doc["USchedulerSettings"] as JsonObject ?? new JsonObject();
+      node["ServiceBinPath"] = settings.ServiceBinPath;
+      if (!string.IsNullOrWhiteSpace(settings.WhatsNewSeenVersion))
+        node["WhatsNewSeenVersion"] = settings.WhatsNewSeenVersion;
+      doc["USchedulerSettings"] = node;
 
       var options = new JsonWriterOptions { Indented = true };
       using var stream = File.Create(_settingsFilePath);

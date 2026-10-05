@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Text;
 using System.Text.RegularExpressions;
 
 
@@ -11,7 +12,7 @@ namespace MaksIT.UScheduler.Shared;
 /// Installs, starts, stops, and queries the UScheduler worker (Windows SCM or systemd).
 /// </summary>
 public sealed class HostServiceManager {
-  public const string DefaultExecutableFileName = "MaksIT.UScheduler";
+  public const string DefaultExecutableFileName = "MaksIT.UScheduler.UI";
 
   public string ServiceName { get; }
 
@@ -108,7 +109,7 @@ public sealed class HostServiceManager {
 
     return new HostServiceOperationResult(
       false,
-      "Preparing data directories requires elevation. Register the service or run MaksIT.UScheduler --prepare-data.");
+      "Preparing data directories requires elevation. Register the service or run MaksIT.UScheduler.UI --prepare-data.");
   }
 
   public HostServiceOperationResult Register(string executablePath) {
@@ -215,8 +216,13 @@ public sealed class HostServiceManager {
   }
 
   private static HostServiceOperationResult RunExecutable(string executablePath, string arguments) {
+    // runas cannot redirect stdout. The elevated command writes a log the UI reads back.
+    string? capturePath = null;
     try {
-      using var process = Process.Start(CreateExecutableStartInfo(executablePath, arguments));
+      if (OperatingSystem.IsWindows() && !IsProcessElevated())
+        capturePath = Path.Combine(Path.GetTempPath(), "uscheduler-" + Guid.NewGuid().ToString("N") + ".log");
+
+      using var process = Process.Start(CreateExecutableStartInfo(executablePath, arguments, capturePath));
       if (process is null)
         return new HostServiceOperationResult(false, "Failed to start process.");
 
@@ -235,8 +241,11 @@ public sealed class HostServiceManager {
         return new HostServiceOperationResult(false, "Timed out waiting for the service executable.");
       }
 
+      if (capturePath is not null)
+        message = ReadCapturedOutput(capturePath);
+
       if (string.IsNullOrWhiteSpace(message))
-        message = process.ExitCode == 0 ? "OK" : $"Command failed (exit code {process.ExitCode}).";
+        message = DescribeCommandResult(arguments, process.ExitCode);
 
       return new HostServiceOperationResult(process.ExitCode == 0, message);
     }
@@ -246,17 +255,60 @@ public sealed class HostServiceManager {
     catch (Exception ex) {
       return new HostServiceOperationResult(false, $"Failed to execute: {ex.Message}");
     }
+    finally {
+      if (capturePath is not null) {
+        try {
+          File.Delete(capturePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+        }
+      }
+    }
   }
 
-  private static ProcessStartInfo CreateExecutableStartInfo(string executablePath, string arguments) {
+  private static string ReadCapturedOutput(string path) {
+    if (!File.Exists(path))
+      return string.Empty;
+
+    // The elevated program writes UTF-8 when cmd redirects it to this file.
+    // OEM code page 850 is not registered in .NET and throws before the text is shown.
+    return File.ReadAllText(path, Encoding.UTF8).Trim();
+  }
+
+  private static string DescribeCommandResult(string arguments, int exitCode) {
+    if (exitCode != 0)
+      return $"Command failed (exit code {exitCode}).";
+
+    var command = arguments.Trim().Split(' ', 2)[0].ToLowerInvariant();
+    return command switch {
+      "--install" or "-i" => "Service installed.",
+      "--uninstall" or "-u" => "Service removed.",
+      "--start" => "Service started.",
+      "--stop" => "Service stopped.",
+      "--prepare-data" => "Data directories are ready.",
+      "--status" => "Service status queried.",
+      _ => "Command completed."
+    };
+  }
+
+  private static ProcessStartInfo CreateExecutableStartInfo(
+    string executablePath,
+    string arguments,
+    string? capturePath) {
     var workingDirectory = Path.GetDirectoryName(executablePath) ?? string.Empty;
 
     if (OperatingSystem.IsWindows() && !IsProcessElevated()) {
+      // cmd strips one leading quote and the last quote when the command contains >.
+      var command = capturePath is null
+        ? $"\"{executablePath}\" {arguments}"
+        : $"\"\"{executablePath}\" {arguments} > \"{capturePath}\" 2>&1\"";
+
       return new ProcessStartInfo {
-        FileName = executablePath,
-        Arguments = arguments,
+        FileName = capturePath is null ? executablePath : "cmd.exe",
+        Arguments = capturePath is null ? arguments : $"/c {command}",
         UseShellExecute = true,
         Verb = "runas",
+        WindowStyle = ProcessWindowStyle.Hidden,
         ErrorDialog = true,
         WorkingDirectory = workingDirectory
       };
@@ -269,6 +321,8 @@ public sealed class HostServiceManager {
         UseShellExecute = false,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
+        StandardOutputEncoding = Encoding.UTF8,
+        StandardErrorEncoding = Encoding.UTF8,
         CreateNoWindow = true,
         WorkingDirectory = workingDirectory
       };
@@ -280,6 +334,8 @@ public sealed class HostServiceManager {
       UseShellExecute = false,
       RedirectStandardOutput = true,
       RedirectStandardError = true,
+      StandardOutputEncoding = Encoding.UTF8,
+      StandardErrorEncoding = Encoding.UTF8,
       CreateNoWindow = true,
       WorkingDirectory = workingDirectory
     };
@@ -288,9 +344,25 @@ public sealed class HostServiceManager {
   private static HostServiceOperationResult RunScCommand(string arguments) {
     var result = RunProcess("sc.exe", arguments);
     var message = string.IsNullOrEmpty(result.Message)
-      ? (result.ExitCode == 0 ? "OK" : "Command failed.")
+      ? DescribeScResult(arguments, result.ExitCode)
       : result.Message;
     return new HostServiceOperationResult(result.ExitCode == 0, message);
+  }
+
+  private static string DescribeScResult(string arguments, int exitCode) {
+    var verb = arguments.Trim().Split(' ', 2)[0].ToLowerInvariant();
+    if (exitCode != 0)
+      return $"sc.exe {verb} failed (exit code {exitCode}).";
+
+    return verb switch {
+      "start" => "Service started.",
+      "stop" => "Service stopped.",
+      "create" => "Service created.",
+      "delete" => "Service deleted.",
+      "description" => "Service description updated.",
+      "query" => "Service status queried.",
+      _ => $"sc.exe {verb} completed."
+    };
   }
 
   private static HostServiceOperationResult RunSystemctl(string verb, string unit, string? extra = null) {

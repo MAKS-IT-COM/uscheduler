@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:footer="using:MaksIT.UScheduler.UI.Controls.Footer"
+        xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+        x:Class="MaksIT.UScheduler.UI.Windows.LogWindow"
+        x:DataType="vm:LogViewModel"
+        Width="860"
+        Height="560"
+        MinWidth="560"
+        MinHeight="360"
+        CanResize="True"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Assets/icon.ico"
+        Title="Logs">
+  <DockPanel Margin="16">
+    <footer:WindowFooter x:Name="Actions"
+                         DockPanel.Dock="Bottom"
+                         Margin="0,12,0,0"
+                         Spacing="8" />
+    <ComboBox DockPanel.Dock="Top"
+              ItemsSource="{Binding Files}"
+              SelectedItem="{Binding SelectedFile}"
+              Margin="0,0,0,12" />
+    <TextBox Text="{Binding Report}"
+             Classes="error-dump"
+             IsReadOnly="True"
+             AcceptsReturn="True"
+             TextWrapping="NoWrap"
+             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+  </DockPanel>
+</Window>

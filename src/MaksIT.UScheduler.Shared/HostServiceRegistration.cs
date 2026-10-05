@@ -4,6 +4,9 @@ namespace MaksIT.UScheduler.Shared;
 /// Builds Windows SCM and systemd registration payloads used by the Worker host.
 /// </summary>
 public static class HostServiceRegistration {
+  /// <summary>Argument that starts the scheduler instead of the desktop window.</summary>
+  public const string ServiceSwitch = "--service";
+
   /// <summary>systemd unit path for a service name.</summary>
   public static string GetSystemdUnitPath(string serviceName) =>
     $"/etc/systemd/system/{serviceName}.service";
@@ -35,7 +38,7 @@ public static class HostServiceRegistration {
       throw new ArgumentException("Service name contains characters that Windows SCM or systemd reject.", nameof(serviceName));
 
     var path = Path.GetFullPath(executablePath);
-    return $"create \"{serviceName}\" binPath= \"{path}\" start= auto";
+    return $"create \"{serviceName}\" binPath= \"\\\"{path}\\\" {ServiceSwitch}\" start= auto";
   }
 
   /// <summary><c>sc.exe description</c> arguments.</summary>
@@ -71,7 +74,7 @@ public static class HostServiceRegistration {
       [Service]
       Type=notify
       WorkingDirectory={QuoteSystemdPath(workingDirectory)}
-      ExecStart={QuoteSystemdPath(exe)}
+      ExecStart={QuoteSystemdPath(exe)} {ServiceSwitch}
       Restart=on-failure
       RestartSec=10
       KillSignal=SIGTERM

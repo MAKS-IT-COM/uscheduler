@@ -1,7 +1,5 @@
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
-using MaksIT.UScheduler.Shared.Helpers;
 
 
 namespace MaksIT.UScheduler.Shared;
@@ -12,6 +10,7 @@ public static class ErrorReport {
   public static string Capture(Exception exception) {
     ArgumentNullException.ThrowIfNull(exception);
     var body = Format(exception);
+    AppLog.Write(body);
     var path = TryWrite(body);
     if (string.IsNullOrWhiteSpace(path))
       return body;
@@ -21,8 +20,8 @@ public static class ErrorReport {
   public static string Format(Exception exception) {
     ArgumentNullException.ThrowIfNull(exception);
     var text = new StringBuilder();
-    text.AppendLine("UScheduler " + Version());
-    text.AppendLine("MaksIT");
+    text.AppendLine(AppInfo.ProductName + " " + AppInfo.Version);
+    text.AppendLine(AppInfo.Brand);
     text.AppendLine(DateTimeOffset.UtcNow.ToString("u"));
     text.AppendLine(RuntimeInformation.OSDescription);
     text.AppendLine(RuntimeInformation.FrameworkDescription);
@@ -34,7 +33,7 @@ public static class ErrorReport {
 
   public static string? TryWrite(string report) {
     try {
-      var dir = UserSettingsPath.LogsDirectory(HostPaths.ProductFolder);
+      var dir = AppLog.Directory();
       Directory.CreateDirectory(dir);
       var name = "crash-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Environment.ProcessId + ".txt";
       var path = Path.Combine(dir, name);
@@ -44,11 +43,6 @@ public static class ErrorReport {
     catch {
       return null;
     }
-  }
-
-  private static string Version() {
-    var version = Assembly.GetEntryAssembly()?.GetName().Version;
-    return version is null ? "" : version.ToString();
   }
 
   private static void AppendException(StringBuilder text, Exception exception) {

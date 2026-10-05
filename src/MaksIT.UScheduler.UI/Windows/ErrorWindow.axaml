@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:footer="using:MaksIT.UScheduler.UI.Controls.Footer"
         xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
         x:Class="MaksIT.UScheduler.UI.Windows.ErrorWindow"
         x:DataType="vm:ErrorReportViewModel"
@@ -14,25 +15,12 @@
         Icon="/Assets/icon.ico"
         Title="UScheduler">
   <DockPanel Margin="16">
-    <StackPanel DockPanel.Dock="Bottom"
-                Orientation="Horizontal"
-                HorizontalAlignment="Right"
-                Spacing="8"
-                Margin="0,12,0,0">
-      <TextBlock Text="{Binding CopyStatus}"
-                 Classes="hint"
-                 VerticalAlignment="Center"
-                 Margin="0,0,8,0" />
-      <Button Content="Copy"
-              Click="OnCopyClick" />
-      <Button Content="Close"
-              Padding="16,8"
-              Click="OnCloseClick"
-              IsDefault="True"
-              IsCancel="True" />
-    </StackPanel>
+    <footer:WindowFooter x:Name="Actions"
+                         DockPanel.Dock="Bottom"
+                         Margin="0,12,0,0"
+                         Spacing="8" />
     <TextBlock DockPanel.Dock="Top"
-               Text="Something went wrong. The details below are also saved to a crash log."
+               Text="Something went wrong. The details below are also saved under Help → Logs."
                Classes="hint"
                TextWrapping="Wrap"
                Margin="0,0,0,12" />

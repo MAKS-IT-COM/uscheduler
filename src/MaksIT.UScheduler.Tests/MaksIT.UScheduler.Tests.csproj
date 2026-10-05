@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MaksIT.UScheduler\MaksIT.UScheduler.csproj" />
+    <ProjectReference Include="..\MaksIT.UScheduler.UI\MaksIT.UScheduler.UI.csproj" />
     <ProjectReference Include="..\MaksIT.UScheduler.Shared\MaksIT.UScheduler.Shared.csproj" />
   </ItemGroup>
 

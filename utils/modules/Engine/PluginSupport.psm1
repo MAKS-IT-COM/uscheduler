@@ -811,13 +811,13 @@ function Get-RegistryCredentialsFromRuntime {
         Hashtable with User and Password keys (decoded credential material).
     #>
     param(
-        [Parameter(Mandatory = $true)]
+        # Omitted arguments must throw. Mandatory prompts on an interactive host and stalls tests and release runs.
+        [AllowEmptyString()]
         [string]$Key,
 
-        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
         [string]$Slot,
 
-        [Parameter(Mandatory = $false)]
         [psobject]$SharedSettings
     )
 

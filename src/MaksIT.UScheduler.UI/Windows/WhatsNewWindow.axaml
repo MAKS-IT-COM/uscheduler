@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:footer="using:MaksIT.UScheduler.UI.Controls.Footer"
+        xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+        xmlns:shared="using:MaksIT.UScheduler.Shared"
+        x:Class="MaksIT.UScheduler.UI.Windows.WhatsNewWindow"
+        x:DataType="vm:WhatsNewViewModel"
+        Title="What's new"
+        Icon="/Assets/icon.ico"
+        Width="520"
+        MaxHeight="640"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <DockPanel Margin="16">
+    <footer:WindowFooter x:Name="Actions"
+                         DockPanel.Dock="Bottom"
+                         Margin="0,16,0,0" />
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="4">
+        <TextBlock Text="What's new" FontSize="20" FontWeight="SemiBold" />
+        <ItemsControl ItemsSource="{Binding Notes}" Margin="0,8,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="shared:ReleaseNote">
+              <StackPanel Margin="0,8,0,0" Spacing="4">
+                <TextBlock Text="{Binding Version}" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding Added}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:CompileBindings="False">
+                      <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

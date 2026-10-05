@@ -14,6 +14,8 @@ public class HostServiceRegistrationTests {
     Assert.Contains("start= auto", arguments, StringComparison.Ordinal);
     Assert.DoesNotContain("start=auto", arguments, StringComparison.Ordinal);
     Assert.Contains("create \"MaksIT.UScheduler\"", arguments, StringComparison.Ordinal);
+    Assert.Contains("--service", arguments, StringComparison.Ordinal);
+    Assert.Contains("\\\"", arguments, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -25,6 +27,7 @@ public class HostServiceRegistrationTests {
 
     Assert.Contains("Type=notify", unit, StringComparison.Ordinal);
     Assert.Contains("ExecStart=\"", unit, StringComparison.Ordinal);
+    Assert.Contains("--service", unit, StringComparison.Ordinal);
     Assert.Contains("WorkingDirectory=\"", unit, StringComparison.Ordinal);
     Assert.Contains("WantedBy=multi-user.target", unit, StringComparison.Ordinal);
     Assert.Contains("SyslogIdentifier=MaksIT.UScheduler", unit, StringComparison.Ordinal);
@@ -49,8 +52,8 @@ public class HostServiceRegistrationTests {
   public void GetExecutableFileName_MatchesHost() {
     var name = HostServiceManager.GetExecutableFileName();
     if (OperatingSystem.IsWindows())
-      Assert.Equal("MaksIT.UScheduler.exe", name);
+      Assert.Equal("MaksIT.UScheduler.UI.exe", name);
     else
-      Assert.Equal("MaksIT.UScheduler", name);
+      Assert.Equal("MaksIT.UScheduler.UI", name);
   }
 }

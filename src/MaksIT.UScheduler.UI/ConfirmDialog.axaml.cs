@@ -1,5 +1,6 @@
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using CommunityToolkit.Mvvm.Input;
+using MaksIT.UScheduler.UI.Controls.Footer;
 
 
 namespace MaksIT.UScheduler.UI;
@@ -7,12 +8,14 @@ namespace MaksIT.UScheduler.UI;
 public partial class ConfirmDialog : Window {
   public ConfirmDialog() {
     InitializeComponent();
+    WireFooter();
   }
 
   public ConfirmDialog(string title, string message) {
     InitializeComponent();
     Title = title;
     MessageText.Text = message;
+    WireFooter();
   }
 
   public static async Task<bool> ShowAsync(Window owner, string title, string message) {
@@ -20,9 +23,16 @@ public partial class ConfirmDialog : Window {
     return await dialog.ShowDialog<bool>(owner);
   }
 
-  private void Ok_Click(object? sender, RoutedEventArgs e) =>
-    Close(true);
-
-  private void Cancel_Click(object? sender, RoutedEventArgs e) =>
-    Close(false);
+  private void WireFooter() {
+    Actions.Items = [
+      new FooterButton("OK", new RelayCommand(() => Close(true))) {
+        Edge = FooterEdge.Trailing,
+        IsDefault = true
+      },
+      new FooterButton("Cancel", new RelayCommand(() => Close(false))) {
+        Edge = FooterEdge.Trailing,
+        IsCancel = true
+      }
+    ];
+  }
 }

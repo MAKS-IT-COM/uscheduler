@@ -1,6 +1,8 @@
+using System.Text;
 using Avalonia;
 using Avalonia.Logging;
 using Avalonia.Threading;
+using MaksIT.UScheduler.Shared;
 using MaksIT.UScheduler.UI.Dialogs;
 
 
@@ -9,8 +11,20 @@ namespace MaksIT.UScheduler.UI;
 internal static class Program {
   [STAThread]
   public static void Main(string[] args) {
+    Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandled;
     TaskScheduler.UnobservedTaskException += OnUnobservedTask;
+    AppLog.Write(AppInfo.ProductName + " " + AppInfo.Version + " started.");
+    if (SchedulerHost.ShouldRunHeadless(args)) {
+      try {
+        Environment.Exit(SchedulerHost.Run(args));
+      }
+      catch (Exception ex) {
+        Console.Error.WriteLine(ex);
+        Environment.Exit(1);
+      }
+    }
+
     try {
       BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }

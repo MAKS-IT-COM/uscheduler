@@ -1,32 +1,30 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:footer="using:MaksIT.UScheduler.UI.Controls.Footer"
         x:Class="MaksIT.UScheduler.UI.MessageDialog"
         Title="Message"
         Icon="/Assets/icon.ico"
-        Width="440"
-        Height="180"
-        MinWidth="360"
-        MinHeight="160"
+        Width="560"
+        SizeToContent="Height"
+        MinWidth="420"
+        MinHeight="180"
+        MaxHeight="480"
         WindowStartupLocation="CenterOwner"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="False">
-  <Grid Margin="16">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="*" />
-      <RowDefinition Height="Auto" />
-    </Grid.RowDefinitions>
-
-    <TextBlock Name="MessageText"
-               TextWrapping="Wrap"
-               VerticalAlignment="Center" />
-
-    <Button Grid.Row="1"
-            Content="OK"
-            Width="88"
-            HorizontalAlignment="Right"
-            Margin="0,16,0,0"
-            IsDefault="True"
-            IsCancel="True"
-            Click="Ok_Click" />
-  </Grid>
+  <DockPanel Margin="16">
+    <footer:WindowFooter x:Name="Actions"
+                         DockPanel.Dock="Bottom"
+                         Margin="0,16,0,0"
+                         Spacing="8" />
+    <TextBox Name="MessageText"
+             Classes="detail"
+             IsReadOnly="True"
+             AcceptsReturn="True"
+             TextWrapping="Wrap"
+             MinHeight="72"
+             MaxHeight="340"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+  </DockPanel>
 </Window>

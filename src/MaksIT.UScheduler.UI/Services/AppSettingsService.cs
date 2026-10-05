@@ -7,7 +7,7 @@ namespace MaksIT.UScheduler.UI.Services;
 /// <summary>
 /// Loads and saves machine-wide service configuration (ProgramData settings.json,
 /// or the portable Data folder).
-/// Shipped appsettings.json next to the worker is seed-only.
+/// Shipped appsettings.json next to the program is seed-only.
 /// </summary>
 public class AppSettingsService {
   private ConfigurationFileService? _files;

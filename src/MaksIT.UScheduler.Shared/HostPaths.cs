@@ -8,7 +8,7 @@ namespace MaksIT.UScheduler.Shared;
 /// Program Files and scripts, logs, and machine settings outside Program Files
 /// so normal users can read and write them after <c>--prepare-data</c> /
 /// <c>--install</c>. A <see cref="PortableMarkerFileName"/> file next to the
-/// worker (or in a parent folder) switches to a portable layout: scripts, logs,
+/// program (or in a parent folder) switches to a portable layout: scripts, logs,
 /// and settings stay under that folder.
 /// </summary>
 public static class HostPaths {

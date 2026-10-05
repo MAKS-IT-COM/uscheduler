@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
-using MaksIT.UScheduler;
 using MaksIT.UScheduler.Shared;
 using MaksIT.UScheduler.Services;
 using MaksIT.UScheduler.BackgroundServices;

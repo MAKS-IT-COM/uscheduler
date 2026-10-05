@@ -1,11 +1,31 @@
 # MaksIT.UScheduler Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project will be documented in this file. In-app What's New reads [WHATSNEW.md](WHATSNEW.md).
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.4.0] - 2026-10-05
+
+### Added
+
+- After an upgrade, What's New lists additions since the version you last opened.
+- Help → Logs shows the program log and crash reports. Help → About shows the product, license, and contact.
+- A Microsoft Store MSIX is packed for Partner Center (`MAKS-IT.UScheduler`). It stays in `releases/` and is not a GitHub release asset.
+
+### Changed
+
+- The desktop program is the scheduler. Windows and systemd start `MaksIT.UScheduler.UI` with `--service`; there is no separate worker executable. Re-register an existing service so it points at the UI program.
+- **Launch** asks the running service to start the script, so the window stays unelevated. That run ignores the schedule and the minimum interval.
+- Each page composes its own footer actions. The shell shows that list instead of keeping every button in the layout and hiding the ones that do not apply.
+- Service message boxes show the command output (install path, service state, and errors) instead of a bare OK. **Copy** puts that text on the clipboard.
+- Synced RepoUtils (Community desktop, including `MsixPack`). Coverage badges stay shields.io URLs in the README. The test engine does not write SVG files.
+
+### Fixed
+
+- Service commands no longer fail after they finish when the output log is read back. OEM code page 850 is registered, and redirected command output is read as UTF-8.
 
 ## [1.3.0] - 2026-09-30
 

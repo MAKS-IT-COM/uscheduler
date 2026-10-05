@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+             xmlns:controls="using:MaksIT.UScheduler.UI.Controls"
+             xmlns:local="using:MaksIT.UScheduler.UI"
+             x:Class="MaksIT.UScheduler.UI.Views.SettingsView"
+             x:DataType="vm:MainViewModel">
+  <UserControl.Resources>
+    <local:NamedColorBrushConverter x:Key="NamedColorBrush" />
+  </UserControl.Resources>
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="8">
+      <controls:GroupBox Header="Service Control">
+        <Grid RowDefinitions="Auto,Auto,Auto">
+          <TextBlock Text="{Binding AppSettingsLoadError}"
+                     IsVisible="{Binding HasAppSettingsLoadError}"
+                     Classes="warning"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,8" />
+
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+            <TextBlock Text="Service Bin Path:"
+                       VerticalAlignment="Center"
+                       Margin="0,0,10,0"
+                       FontWeight="Bold" />
+            <TextBox Grid.Column="1"
+                     Text="{Binding ServiceBinPath}"
+                     VerticalAlignment="Center" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+              <Button Content="..." Command="{Binding BrowseServiceBinPathCommand}" MinWidth="30" />
+              <Button Content="Reload" Command="{Binding ReloadAppSettingsCommand}" MinWidth="50" />
+            </StackPanel>
+          </Grid>
+
+          <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="Service:" FontWeight="Bold" />
+            <TextBlock Text="{Binding ServiceName}" Margin="6,0,16,0" />
+            <TextBlock Text="Status:" FontWeight="Bold" />
+            <Ellipse Width="12"
+                     Height="12"
+                     Margin="6,0,6,0"
+                     VerticalAlignment="Center"
+                     Fill="{Binding ServiceStatusColor, Converter={StaticResource NamedColorBrush}}" />
+            <TextBlock Text="{Binding ServiceStatusText}" FontWeight="SemiBold" />
+          </StackPanel>
+        </Grid>
+      </controls:GroupBox>
+
+      <TextBlock Text="The window runs without elevation. Register, start, stop, and unregister prompt for administrator approval in place."
+                 Classes="hint"
+                 TextWrapping="Wrap"
+                 Margin="0,0,0,8" />
+
+      <controls:GroupBox Header="Shared settings">
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*">
+          <TextBlock Text="Settings file:"
+                     VerticalAlignment="Center"
+                     Margin="0,0,10,8"
+                     FontWeight="Bold" />
+          <TextBox Grid.Column="1"
+                   Text="{Binding SharedSettingsPath}"
+                   Margin="0,0,0,8"
+                   IsReadOnly="True" />
+          <TextBlock Grid.Row="1"
+                     Text="Scripts:"
+                     VerticalAlignment="Center"
+                     Margin="0,0,10,0"
+                     FontWeight="Bold" />
+          <TextBox Grid.Row="1"
+                   Grid.Column="1"
+                   Text="{Binding ScriptsDirectory}"
+                   IsReadOnly="True" />
+        </Grid>
+      </controls:GroupBox>
+
+      <controls:GroupBox Header="Log Path">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="Log Directory:"
+                     VerticalAlignment="Center"
+                     Margin="0,0,10,0"
+                     FontWeight="Bold" />
+          <TextBox Text="{Binding LogDirectory}"
+                   MinWidth="300"
+                   VerticalAlignment="Center"
+                   IsReadOnly="True" />
+        </StackPanel>
+      </controls:GroupBox>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

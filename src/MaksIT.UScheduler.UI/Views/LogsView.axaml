@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+             xmlns:controls="using:MaksIT.UScheduler.UI.Controls"
+             x:Class="MaksIT.UScheduler.UI.Views.LogsView"
+             x:DataType="vm:MainViewModel">
+  <controls:GroupBox Header="Log Viewer">
+    <Grid ColumnDefinitions="250,*">
+      <TabControl SelectedIndex="{Binding SelectedLogTab}">
+        <TabItem Header="Service Logs">
+          <ListBox ItemsSource="{Binding ServiceLogs}"
+                   SelectedItem="{Binding SelectedLogFile}">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel>
+                  <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding SizeDisplay}" Classes="hint" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </TabItem>
+        <TabItem Header="Script Logs">
+          <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,*">
+            <TextBlock Text="Script folders" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBlock Grid.Column="1" Text="Log files" FontWeight="SemiBold" Margin="8,0,0,4" />
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding ScriptLogFolders}"
+                     SelectedItem="{Binding SelectedScriptLogFolder}" />
+            <ListBox Grid.Row="1"
+                     Grid.Column="1"
+                     Margin="8,0,0,0"
+                     ItemsSource="{Binding ScriptLogFiles}"
+                     SelectedItem="{Binding SelectedLogFile}">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel>
+                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SizeDisplay}" Classes="hint" />
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </TabItem>
+      </TabControl>
+
+      <Grid Grid.Column="1" Margin="8,0,0,0">
+        <TextBox Text="{Binding LogContent, Mode=OneWay}"
+                 IsReadOnly="True"
+                 FontFamily="Consolas, DejaVu Sans Mono, monospace"
+                 FontSize="11"
+                 AcceptsReturn="True"
+                 TextWrapping="NoWrap" />
+      </Grid>
+    </Grid>
+  </controls:GroupBox>
+</UserControl>

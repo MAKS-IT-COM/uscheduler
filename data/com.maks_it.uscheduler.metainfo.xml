@@ -9,12 +9,13 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>Apache-2.0</project_license>
   <description>
-    <p>Schedule and run PowerShell scripts and console processes from an Avalonia desktop UI. Register the worker, edit schedules, and follow logs without a browser.</p>
-    <p>The Flatpak is the UI. Script files and logs live under the home folder. The worker is a separate install on Linux (systemd) or Windows (service).</p>
+    <p>Schedule and run PowerShell scripts and console processes from an Avalonia desktop UI. The same program runs as the Windows service or systemd unit. Register it, edit schedules, and follow logs without a browser.</p>
+    <p>The Flatpak is the desktop window. Script files and logs live under the home folder. Register the service on the host when scripts must keep running with nobody signed in.</p>
     <ul>
       <li>Script list, schedules, and log viewing</li>
-      <li>Register, start, and stop the worker (prompts for elevation)</li>
+      <li>Register, start, and stop the service (prompts for elevation)</li>
       <li>Windows and Linux script compatibility flags</li>
+      <li>After an upgrade, What's New lists additions since the version you last opened</li>
     </ul>
   </description>
   <launchable type="desktop-id">com.maks_it.uscheduler.desktop</launchable>
@@ -39,6 +40,12 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.4.0" date="2026-10-05">
+      <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.4.0/CHANGELOG.md</url>
+      <description>
+        <p>The desktop program is the service. Launch runs a script now. What's New lists additions since the version you last opened.</p>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-09-30">
       <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.3.0/CHANGELOG.md</url>
       <description>

@@ -3,7 +3,7 @@
 
 <#
 .SYNOPSIS
-    Helpers for Community desktop pack plugins (Windows MSI, Linux Flatpak).
+    Helpers for Community desktop pack plugins (Windows MSI, Store MSIX, Linux Flatpak).
 #>
 
 function ConvertTo-WixIdentifier {
@@ -1290,6 +1290,184 @@ function New-WixBundleXml {
 "@
 }
 
+function ConvertTo-MsixPackageVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+
+    $trimmed = $Version.Trim()
+    if ($trimmed -match '-') {
+        throw "MsixPack version '$Version' cannot include a prerelease label. MSIX Identity Version is four numbers (X.Y.Z.0)."
+    }
+
+    $parts = @($trimmed.Split('.', [System.StringSplitOptions]::RemoveEmptyEntries))
+    if ($parts.Count -lt 1 -or $parts.Count -gt 4) {
+        throw "MsixPack version '$Version' must be one to four numeric fields."
+    }
+
+    $numbers = [System.Collections.Generic.List[int]]::new()
+    foreach ($part in $parts) {
+        $number = 0
+        if (-not [int]::TryParse($part, [ref]$number) -or $number -lt 0 -or $number -gt 65535) {
+            throw "MsixPack version '$Version' has a field outside 0..65535."
+        }
+
+        $numbers.Add($number)
+    }
+
+    while ($numbers.Count -lt 4) {
+        $numbers.Add(0)
+    }
+
+    return ($numbers -join '.')
+}
+
+function Assert-MsixPackageName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName
+    )
+
+    if ($PackageName.Length -lt 3 -or $PackageName.Length -gt 50) {
+        throw "MsixPack packageName must be 3 to 50 characters: $PackageName"
+    }
+
+    if ($PackageName -notmatch '^[A-Za-z0-9][A-Za-z0-9\.\-]*[A-Za-z0-9]$' -or $PackageName.Contains('..')) {
+        throw "MsixPack packageName must be letters, digits, hyphens, and single dots: $PackageName"
+    }
+}
+
+function New-MsixManifestXml {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Publisher,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PackageVersion,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProcessorArchitecture,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DisplayName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PublisherDisplayName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutableName,
+
+        [Parameter(Mandatory = $false)]
+        [string]$Description,
+
+        [Parameter(Mandatory = $false)]
+        [string]$Language = 'en-us'
+    )
+
+    $escape = {
+        param([string]$Value)
+        return [System.Security.SecurityElement]::Escape($Value)
+    }
+
+    $safeDescription = if ([string]::IsNullOrWhiteSpace($Description)) { $DisplayName } else { $Description }
+    $exe = [System.IO.Path]::GetFileName($ExecutableName)
+
+    return @"
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap rescap">
+  <Identity Name="$(& $escape $PackageName)" Publisher="$(& $escape $Publisher)" Version="$(& $escape $PackageVersion)" ProcessorArchitecture="$(& $escape $ProcessorArchitecture)" />
+  <Properties>
+    <DisplayName>$(& $escape $DisplayName)</DisplayName>
+    <PublisherDisplayName>$(& $escape $PublisherDisplayName)</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="$(& $escape $Language)" />
+  </Resources>
+  <Applications>
+    <Application Id="App" Executable="$(& $escape $exe)" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="$(& $escape $DisplayName)" Description="$(& $escape $safeDescription)" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
+"@
+}
+
+function Copy-MsixPackageLogos {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$IconPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AssetsDirectory
+    )
+
+    if (-not (Test-Path -LiteralPath $IconPath -PathType Leaf)) {
+        throw "MsixPack iconPath not found: $IconPath"
+    }
+
+    New-Item -ItemType Directory -Path $AssetsDirectory -Force | Out-Null
+    $sizes = [ordered]@{
+        'Square44x44Logo.png'   = 44
+        'StoreLogo.png'         = 50
+        'Square150x150Logo.png' = 150
+    }
+
+    $drew = $false
+    try {
+        Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+        $image = [System.Drawing.Image]::FromFile((Resolve-Path -LiteralPath $IconPath).Path)
+        try {
+            foreach ($name in @($sizes.Keys)) {
+                $size = [int]$sizes[$name]
+                $bitmap = New-Object System.Drawing.Bitmap $size, $size
+                try {
+                    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+                    try {
+                        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                        $graphics.Clear([System.Drawing.Color]::Transparent)
+                        $graphics.DrawImage($image, 0, 0, $size, $size)
+                    }
+                    finally {
+                        $graphics.Dispose()
+                    }
+
+                    $bitmap.Save((Join-Path $AssetsDirectory $name), [System.Drawing.Imaging.ImageFormat]::Png)
+                }
+                finally {
+                    $bitmap.Dispose()
+                }
+            }
+
+            $drew = $true
+        }
+        finally {
+            $image.Dispose()
+        }
+    }
+    catch {
+        $drew = $false
+    }
+
+    if ($drew) {
+        return
+    }
+
+    foreach ($name in @($sizes.Keys)) {
+        Copy-Item -LiteralPath $IconPath -Destination (Join-Path $AssetsDirectory $name) -Force
+    }
+}
+
 Export-ModuleMember -Function `
     ConvertTo-WixIdentifier, `
     Get-MsiProductVersion, `
@@ -1300,6 +1478,10 @@ Export-ModuleMember -Function `
     Resolve-DesktopPublishDirectory, `
     Resolve-DesktopExecutablePath, `
     New-WixPackageXml, `
+    ConvertTo-MsixPackageVersion, `
+    Assert-MsixPackageName, `
+    New-MsixManifestXml, `
+    Copy-MsixPackageLogos, `
     Get-DerivedBundleUpgradeCode, `
     New-WixBundleXml, `
     Get-DefaultFlatpakFinishArgs, `
