@@ -198,6 +198,26 @@ function Invoke-Plugin {
         }
     }
 
+    $scriptsDirectory = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'scriptsDirectory' -Default 'C:\MaksIT\Scripts')
+    $logsDirectory = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'logsDirectory' -Default 'C:\MaksIT\Logs')
+    $postInstallExecutableName = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'postInstallExecutableName')
+    $postInstallArguments = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'postInstallArguments' -Default '--prepare-data')
+    $postInstallCommand = ''
+    $quietExecBinary = 'Wix4UtilCA_X86'
+    $quietExecEntry = 'WixQuietExec'
+    if ($wixArch -eq 'x64') {
+        $quietExecBinary = 'Wix4UtilCA_X64'
+        $quietExecEntry = 'WixQuietExec64'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($postInstallExecutableName)) {
+        if ([string]::IsNullOrWhiteSpace($postInstallArguments)) {
+            $postInstallArguments = '--prepare-data'
+        }
+
+        $postInstallCommand = "`"[INSTALLFOLDER]$postInstallExecutableName`" $postInstallArguments --scripts-dir `"[SCRIPTSFOLDER]`" --log-dir `"[LOGSFOLDER]`" --layout [INSTALLLAYOUT]"
+    }
+
     $productVersion = Get-MsiProductVersion -Version $version
     $safeName = ($appName -replace '[^A-Za-z0-9._-]', '-').Trim('-')
     $exeNamePattern = [string](Get-PluginPropertyValue -PluginSettings $pluginSettings -Name 'exeNamePattern' -Default '{name}-{version}.exe')
@@ -225,7 +245,10 @@ function Invoke-Plugin {
         -InstallScope $installScope `
         -InstallFolderName $installFolderName `
         -Architecture $wixArch `
-        -IconPath $iconPath
+        -IconPath $iconPath `
+        -PostInstallCommand $postInstallCommand `
+        -QuietExecBinary $quietExecBinary `
+        -QuietExecEntry $quietExecEntry
 
     $xml.Save($wxsPath)
     Write-Log -Level "OK" -Message "  WiX source: $wxsPath"
@@ -246,7 +269,12 @@ function Invoke-Plugin {
 
     Write-Log -Level "STEP" -Message "Building MSI with WiX ($wixArch)..."
     try {
-        Invoke-ExternalCommand -Name wix -ArgumentList (@('build') + $eulaArgs + $archArgs + @($wxsPath, '-o', $msiPath)) | Out-Null
+        $msiExtArgs = @()
+        if (-not [string]::IsNullOrWhiteSpace($postInstallCommand)) {
+            $msiExtArgs = @('-ext', 'WixToolset.Util.wixext')
+        }
+
+        Invoke-ExternalCommand -Name wix -ArgumentList (@('build') + $eulaArgs + $archArgs + $msiExtArgs + @($wxsPath, '-o', $msiPath)) | Out-Null
     }
     catch {
         if (Test-WixMissingException -ErrorRecord $_) {
@@ -272,7 +300,9 @@ function Invoke-Plugin {
         -ThemePath $themePath `
         -InstallScope $installScope `
         -InstallFolderName $installFolderName `
-        -Architecture $wixArch
+        -Architecture $wixArch `
+        -ScriptsDirectory $scriptsDirectory `
+        -LogsDirectory $logsDirectory
     [System.IO.File]::WriteAllText($bundleWxsPath, $bundleXml, [System.Text.UTF8Encoding]::new($false))
 
     if (Test-Path -LiteralPath $exePath -PathType Leaf) {

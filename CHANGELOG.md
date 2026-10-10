@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-10
+
+### Added
+
+- The **Processes** tab lists programs the service keeps running. Each row shows running, restarting, stopped, or waiting. Add, remove, and save the list. **Start**, **Stop**, and **Restart** ask the running service, so the program runs as the service account. Stop leaves it down until Start, or until the service itself starts again.
+- A configured console program starts with the service, runs beside the others, and stops when the service stops. With `RestartOnFailure` (the default), any exit starts it again. A run shorter than `ThrottleMs` waits before the next start, and longer if it keeps exiting immediately, so a crash loop does not spin. Standard output and error go to that program's log. The service writes `process-status.json` in the log directory for the window.
+- Process settings: `Name` (empty uses the executable file name), `Directory` (working directory; empty uses the executable's directory), `RestartDelayMs`, and `ThrottleMs` (default 1500).
+- The window remembers its size, position, and state in the per-user UI settings.
+- Settings shows the service name and status, plus the settings file, scripts folder, and log directory. **Open logs** opens that directory. Log views use **Open Folder**, and **Show in folder** when a file is selected.
+
+### Changed
+
+- The schedule tab is named **Scripts**. Screenshot tours use the id `scripts`.
+- Windows setup **Options** sets the scripts and logs folders. They start at `C:\MaksIT\Scripts` and `C:\MaksIT\Logs`. A portable install still keeps those folders inside the install folder unless the paths are changed.
+- Standard and Portable on the setup page sit below the welcome text.
+- `RestartOnFailure` defaults to `true` and restarts after any exit. Set it to `false` to leave the program stopped. Existing settings that omit the property pick up the new default.
+- Settings no longer asks for a service folder. The service is this same program. A saved `ServiceBinPath` is dropped from the per-user UI settings.
+- About, Logs, What's New, and the error dialog use the shared desktop windows.
+- README and Microsoft Store text describe supervised programs. Screenshots live under `assets/screenshots/`.
+
 ## [1.4.0] - 2026-10-05
 
 ### Added
@@ -168,7 +188,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration format and service naming conventions updated.
 - Scheduling logic for console applications is not yet implemented (runs every 10 seconds).
 
-<!-- 
+<!--
 Template for new releases:
 
 ## [1.x.x] - YYYY-MM-DD

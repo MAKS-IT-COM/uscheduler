@@ -11,7 +11,7 @@ public interface IDialogService {
 
   Task<bool> ConfirmAsync(string title, string message);
 
-  Task<string?> PickFolderAsync(string title);
+  Task<string?> PickExecutableAsync();
 }
 
 public sealed class DialogService : IDialogService {
@@ -31,18 +31,21 @@ public sealed class DialogService : IDialogService {
     return await ConfirmDialog.ShowAsync(Owner, title, message);
   }
 
-  public async Task<string?> PickFolderAsync(string title) {
+  public async Task<string?> PickExecutableAsync() {
     if (Owner is null)
       return null;
 
-    var folders = await Owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions {
-      Title = title,
-      AllowMultiple = false
+    var files = await Owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions {
+      Title = "Program",
+      AllowMultiple = false,
+      FileTypeFilter = [
+        new FilePickerFileType("Programs") {
+          Patterns = OperatingSystem.IsWindows() ? ["*.exe"] : ["*"]
+        },
+        new FilePickerFileType("All files") { Patterns = ["*"] }
+      ]
     });
 
-    if (folders.Count == 0)
-      return null;
-
-    return folders[0].TryGetLocalPath();
+    return files.Count == 0 ? null : files[0].TryGetLocalPath();
   }
 }

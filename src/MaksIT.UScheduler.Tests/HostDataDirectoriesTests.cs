@@ -137,6 +137,41 @@ public class HostDataDirectoriesTests {
   }
 
   [Fact]
+  public void ResolveLayout_portable_keeps_subfolders_when_paths_are_the_machine_defaults() {
+    var install = Path.Combine(Path.GetTempPath(), $"uscheduler-layout-port-default-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(install);
+    try {
+      var layout = HostDataDirectories.ResolveLayout(
+        install,
+        portableRequested: true,
+        scriptsDirectory: HostPaths.DefaultScriptsDirectory,
+        logDirectory: HostPaths.DefaultLogDirectory);
+      Assert.Equal(Path.GetFullPath(Path.Combine(install, "Scripts")), Path.GetFullPath(layout.ScriptsDirectory));
+      Assert.Equal(Path.GetFullPath(Path.Combine(install, "Logs")), Path.GetFullPath(layout.LogDirectory));
+    }
+    finally {
+      Directory.Delete(install, true);
+    }
+  }
+
+  [Fact]
+  public void ResolveLayout_uses_custom_scripts_and_logs_paths() {
+    var install = Path.Combine(Path.GetTempPath(), $"uscheduler-layout-custom-{Guid.NewGuid():N}");
+    var scripts = Path.Combine(install, "custom-scripts");
+    var logs = Path.Combine(install, "custom-logs");
+    Directory.CreateDirectory(install);
+    try {
+      var layout = HostDataDirectories.ResolveLayout(install, portableRequested: false, scripts, logs);
+      Assert.False(layout.Portable);
+      Assert.Equal(Path.GetFullPath(scripts), Path.GetFullPath(layout.ScriptsDirectory));
+      Assert.Equal(Path.GetFullPath(logs), Path.GetFullPath(layout.LogDirectory));
+    }
+    finally {
+      Directory.Delete(install, true);
+    }
+  }
+
+  [Fact]
   public void ResolveLayout_detects_existing_portable_marker() {
     var install = Path.Combine(Path.GetTempPath(), $"uscheduler-layout-mark-{Guid.NewGuid():N}");
     Directory.CreateDirectory(install);

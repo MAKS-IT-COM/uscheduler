@@ -25,7 +25,11 @@ public static class HostDataDirectories {
   /// <summary>Windows Built-in Users (locale-independent).</summary>
   private const string BuiltinUsersSid = "*S-1-5-32-545";
 
-  public static HostDataLayout ResolveLayout(string? installDirectory = null, bool portableRequested = false) {
+  public static HostDataLayout ResolveLayout(
+    string? installDirectory = null,
+    bool portableRequested = false,
+    string? scriptsDirectory = null,
+    string? logDirectory = null) {
     var installDir = string.IsNullOrWhiteSpace(installDirectory)
       ? AppContext.BaseDirectory
       : Path.GetFullPath(installDirectory);
@@ -35,8 +39,8 @@ public static class HostDataDirectories {
     if (!portable) {
       return new HostDataLayout(
         HostPaths.DefaultDataRoot,
-        HostPaths.DefaultScriptsDirectory,
-        HostPaths.DefaultLogDirectory,
+        ChooseDirectory(scriptsDirectory, HostPaths.DefaultScriptsDirectory, HostPaths.DefaultScriptsDirectory),
+        ChooseDirectory(logDirectory, HostPaths.DefaultLogDirectory, HostPaths.DefaultLogDirectory),
         HostPaths.SharedSettingsFile,
         false);
     }
@@ -44,13 +48,17 @@ public static class HostDataDirectories {
     var root = portableRoot ?? installDir;
     return new HostDataLayout(
       root,
-      HostPaths.GetPortableScriptsDirectory(root),
-      HostPaths.GetPortableLogDirectory(root),
+      ChooseDirectory(scriptsDirectory, HostPaths.GetPortableScriptsDirectory(root), HostPaths.DefaultScriptsDirectory),
+      ChooseDirectory(logDirectory, HostPaths.GetPortableLogDirectory(root), HostPaths.DefaultLogDirectory),
       HostPaths.GetPortableSharedSettingsFile(root),
       true);
   }
 
-  public static HostServiceOperationResult Prepare(string? installDirectory = null, bool portable = false) {
+  public static HostServiceOperationResult Prepare(
+    string? installDirectory = null,
+    bool portable = false,
+    string? scriptsDirectory = null,
+    string? logDirectory = null) {
     var installDir = string.IsNullOrWhiteSpace(installDirectory)
       ? AppContext.BaseDirectory
       : installDirectory;
@@ -60,7 +68,7 @@ public static class HostDataDirectories {
       if (portable)
         HostPaths.WritePortableMarker(Path.GetFullPath(installDir));
 
-      var layout = ResolveLayout(installDir, portable);
+      var layout = ResolveLayout(installDir, portable, scriptsDirectory, logDirectory);
       Directory.CreateDirectory(layout.Root);
       Directory.CreateDirectory(layout.ScriptsDirectory);
       Directory.CreateDirectory(layout.LogDirectory);
@@ -90,6 +98,14 @@ public static class HostDataDirectories {
           GrantUnixGroupWrite(settingsDir, messages);
       }
 
+      if (OperatingSystem.IsWindows()) {
+        if (!IsInside(layout.ScriptsDirectory, layout.Root))
+          GrantUsersModify(layout.ScriptsDirectory, messages);
+
+        if (!IsInside(layout.LogDirectory, layout.Root))
+          GrantUsersModify(layout.LogDirectory, messages);
+      }
+
       var source = HostPaths.FindBundledScriptsDirectory(installDir);
       if (source is null || !Directory.Exists(source)) {
         messages.Add(
@@ -108,11 +124,15 @@ public static class HostDataDirectories {
           messages.Add($"Scripts directory: {layout.ScriptsDirectory}");
       }
 
-      WritePortableSettingsIfNeeded(layout, installDir);
+      if (!string.IsNullOrWhiteSpace(scriptsDirectory) || !string.IsNullOrWhiteSpace(logDirectory))
+        WriteChosenDirectories(layout, installDir);
+      else
+        WritePortableSettingsIfNeeded(layout, installDir);
+
       messages.Add($"Logs directory: {layout.LogDirectory}");
       messages.Add($"Shared settings: {layout.SharedSettingsFile}");
       if (layout.Portable)
-        messages.Add("Install type: portable (everything under the install folder).");
+        messages.Add("Install type: portable (program and settings under the install folder).");
       return new HostServiceOperationResult(true, string.Join(Environment.NewLine, messages));
     }
     catch (Exception ex) {
@@ -152,6 +172,43 @@ public static class HostDataDirectories {
     }
 
     return new SeedCopyResult(copied, skipped);
+  }
+
+  private static string ChooseDirectory(string? requested, string layoutDefault, string machineDefault) {
+    if (string.IsNullOrWhiteSpace(requested))
+      return layoutDefault;
+
+    string full;
+    try {
+      full = Path.GetFullPath(requested.Trim());
+    }
+    catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) {
+      return layoutDefault;
+    }
+
+    if (PathsEqual(full, machineDefault))
+      return layoutDefault;
+
+    return full;
+  }
+
+  private static bool IsInside(string path, string root) {
+    var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    var fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    return fullPath.Equals(fullRoot, StringComparison.OrdinalIgnoreCase)
+      || fullPath.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+  }
+
+  private static void WriteChosenDirectories(HostDataLayout layout, string installDir) {
+    var seed = Path.Combine(installDir, ConfigurationFileService.SeedFileName);
+    var files = new ConfigurationFileService(
+      layout.SharedSettingsFile,
+      File.Exists(seed) ? seed : null);
+    var config = files.Current;
+    config.ScriptsDir = layout.ScriptsDirectory;
+    config.LogDir = layout.LogDirectory;
+    files.Save(config);
   }
 
   private static void WritePortableSettingsIfNeeded(HostDataLayout layout, string installDir) {

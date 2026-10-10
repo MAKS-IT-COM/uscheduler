@@ -235,7 +235,7 @@ When `-Automated` is specified:
 
 ```
 [INFO] Processing Folder Pair 1
-[INFO]   Left:  E:\Users\maksym\source
+[INFO]   Left:  D:\Users\maksym\source
 [INFO]   Right: \\server\share\source
 [INFO] Scanning source directory...
 [INFO]   Found 1234 files, 56 directories

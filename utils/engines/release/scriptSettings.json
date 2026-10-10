@@ -79,7 +79,9 @@
       "iconPath": "..\\..\\..\\src\\MaksIT.UScheduler.UI\\Assets\\icon.ico",
       "exeNamePattern": "maksit-uscheduler-{version}.exe",
       "postInstallExecutableName": "MaksIT.UScheduler.UI.exe",
-      "postInstallArguments": "--prepare-data"
+      "postInstallArguments": "--prepare-data",
+      "scriptsDirectory": "C:\\MaksIT\\Scripts",
+      "logsDirectory": "C:\\MaksIT\\Logs"
     },
     {
       "name": "MsixPack",

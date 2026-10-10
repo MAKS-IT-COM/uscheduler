@@ -46,18 +46,39 @@ public class PowershellScript : TaskConfiguration {
 }
 
 /// <summary>
-/// Configuration for a scheduled process/executable.
+/// A program kept running under the service. It starts with the service and stops with it.
 /// </summary>
 public class ProcessConfiguration : TaskConfiguration {
+  /// <summary>
+  /// Display name in the Processes list. Empty uses the executable file name.
+  /// </summary>
+  public string? Name { get; set; }
+
   /// <summary>
   /// Gets or sets the command-line arguments to pass to the process.
   /// </summary>
   public string[]? Args { get; set; }
 
   /// <summary>
-  /// Gets or sets whether the process should automatically restart on failure.
+  /// Working directory. Empty uses the executable's own directory.
   /// </summary>
-  public bool RestartOnFailure { get; set; }
+  public string? Directory { get; set; }
+
+  /// <summary>
+  /// When true, any exit starts the program again. When false, it stays stopped after it exits.
+  /// </summary>
+  public bool RestartOnFailure { get; set; } = true;
+
+  /// <summary>
+  /// Milliseconds to wait before a restart after a run that lasted at least <see cref="ThrottleMs"/>.
+  /// </summary>
+  public int RestartDelayMs { get; set; }
+
+  /// <summary>
+  /// A run shorter than this is treated as a crash. The next start waits at least this long,
+  /// and longer while crashes continue, up to one minute. Default 1500.
+  /// </summary>
+  public int ThrottleMs { get; set; } = 1500;
 }
 
 /// <summary>

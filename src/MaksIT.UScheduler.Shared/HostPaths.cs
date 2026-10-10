@@ -44,6 +44,7 @@ public static class HostPaths {
 
       yield return DefaultInstallDirectory;
       var x86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
       if (!string.IsNullOrWhiteSpace(x86)) {
         var x86Dir = Path.Combine(x86, Manufacturer, ProductFolder);
         if (!x86Dir.Equals(DefaultInstallDirectory, StringComparison.OrdinalIgnoreCase))
@@ -70,6 +71,7 @@ public static class HostPaths {
   /// </summary>
   public static string? FindPortableRoot(string? startDirectory = null) {
     var current = startDirectory ?? AppContext.BaseDirectory;
+
     if (string.IsNullOrWhiteSpace(current))
       return null;
 
@@ -110,17 +112,20 @@ public static class HostPaths {
 
   public static string ResolveSharedSettingsFile(string? startDirectory = null) {
     var root = FindPortableRoot(startDirectory);
+
     return root is null ? SharedSettingsFile : GetPortableSharedSettingsFile(root);
   }
 
   public static string ResolveUiSettingsFile(string? startDirectory = null) {
     var root = FindPortableRoot(startDirectory);
+
     return root is null ? UserSettingsPath.Get(ProductFolder) : GetPortableUiSettingsFile(root);
   }
 
   public static void WritePortableMarker(string portableRoot) {
     Directory.CreateDirectory(portableRoot);
     var path = Path.Combine(portableRoot, PortableMarkerFileName);
+
     if (!File.Exists(path))
       File.WriteAllText(path, PortableMarkerContent + Environment.NewLine);
   }
@@ -132,6 +137,7 @@ public static class HostPaths {
   public static void ApplyPortableDefaults(Configuration configuration, string? startDirectory = null) {
     ArgumentNullException.ThrowIfNull(configuration);
     var root = FindPortableRoot(startDirectory);
+
     if (root is null)
       return;
 
@@ -149,15 +155,19 @@ public static class HostPaths {
   /// </summary>
   public static string ResolveScriptsDirectory(string? configured = null, string? startDirectory = null) {
     var start = startDirectory ?? AppContext.BaseDirectory;
+
     if (!string.IsNullOrWhiteSpace(configured)) {
       var resolved = PathHelper.ResolvePath(configured, start);
+
       if (Directory.Exists(resolved))
         return resolved;
     }
 
     var portableRoot = FindPortableRoot(start);
+
     if (portableRoot is not null) {
       var portableScripts = GetPortableScriptsDirectory(portableRoot);
+
       if (Directory.Exists(portableScripts))
         return portableScripts;
     }
@@ -166,11 +176,13 @@ public static class HostPaths {
       return DefaultScriptsDirectory;
 
     var bundled = FindBundledScriptsDirectory(start);
+
     return bundled ?? DefaultScriptsDirectory;
   }
 
   public static string? FindBundledScriptsDirectory(string? startDirectory = null) {
     var current = startDirectory ?? AppContext.BaseDirectory;
+
     for (var i = 0; i < 10 && !string.IsNullOrEmpty(current); i++) {
       foreach (var candidate in new[] {
         Path.Combine(current, PortableScriptsFolderName),
@@ -186,46 +198,38 @@ public static class HostPaths {
     return null;
   }
 
-  public static string DetectServiceBinPath() {
-    var fromUi = FindWorkerDirectory(AppContext.BaseDirectory);
-    if (fromUi is not null)
-      return fromUi;
-
-    foreach (var candidate in InstallDirectoryCandidates) {
-      var found = FindWorkerDirectory(candidate);
-      if (found is not null)
-        return found;
-    }
-
-    return DefaultInstallDirectory;
-  }
-
   public static string? FindWorkerDirectory(string? startDirectory) {
     if (string.IsNullOrWhiteSpace(startDirectory))
       return null;
 
     var fileName = HostServiceManager.GetExecutableFileName();
     var start = Path.GetFullPath(startDirectory);
+
     if (File.Exists(Path.Combine(start, fileName)))
       return start;
 
     var current = start;
+
     for (var i = 0; i < 10; i++) {
       var parent = Directory.GetParent(current);
+
       if (parent is null)
         break;
 
       current = parent.FullName;
       var sibling = Path.Combine(current, HostServiceManager.DefaultExecutableFileName);
+
       if (File.Exists(Path.Combine(sibling, fileName)))
         return sibling;
 
       var siblingBin = Path.Combine(sibling, "bin");
+
       if (!Directory.Exists(siblingBin))
         continue;
 
       try {
         var match = Directory.EnumerateFiles(siblingBin, fileName, SearchOption.AllDirectories).FirstOrDefault();
+
         if (match is not null)
           return Path.GetDirectoryName(match);
       }

@@ -30,12 +30,16 @@ public static class SchedulerHost {
   public static int Run(string[] args) {
     var basePath = AppContext.BaseDirectory;
     var seedPath = Path.Combine(basePath, ConfigurationFileService.SeedFileName);
-    var portableRequested = HasFlag(args, "--portable");
+    var prepareRequest = ReadPrepareRequest(args);
 
     if (args.Length > 0) {
       var early = args[0].ToLowerInvariant();
       if (early is "--install" or "-i" or "--prepare-data") {
-        var prepared = HostDataDirectories.Prepare(basePath, portableRequested);
+        var prepared = HostDataDirectories.Prepare(
+          basePath,
+          prepareRequest.Portable,
+          prepareRequest.ScriptsDirectory,
+          prepareRequest.LogDirectory);
         Console.WriteLine(prepared.Message);
         if (!prepared.Success)
           return 1;
@@ -86,7 +90,7 @@ public static class SchedulerHost {
           return GetServiceStatus(serviceName);
 
         case "--prepare-data":
-          return PrepareDataDirectories(basePath, portableRequested);
+          return PrepareDataDirectories(basePath, prepareRequest);
 
         case "--help":
         case "-h":
@@ -127,8 +131,11 @@ public static class SchedulerHost {
         EventLogSettings, EventLogLoggerProvider>(builder.Services);
     }
 
+    builder.Services.AddSingleton<IProcessStatusStore, ProcessStatusFileStore>();
     builder.Services.AddSingleton<IProcessService, ProcessService>();
-    builder.Services.AddHostedService<ProcessBackgroundService>();
+    builder.Services.AddSingleton<ProcessBackgroundService>();
+    builder.Services.AddHostedService(provider => provider.GetRequiredService<ProcessBackgroundService>());
+    builder.Services.AddHostedService<ProcessControlListener>();
 
     builder.Services.AddSingleton<IPSScriptService, PSScriptService>();
     builder.Services.AddHostedService<ScriptRunListener>();
@@ -148,6 +155,12 @@ public static class SchedulerHost {
       With no command, this program opens the desktop window.
       The registered service starts the same program with {HostServiceRegistration.ServiceSwitch}.
 
+      Window:
+        --screenshots <dir>   Save PNGs of the main screens, then exit
+        --views <ids>         Limit --screenshots to comma-separated ids
+                              (scripts, processes, logs, script-logs, settings, about, program-log)
+        --settle-ms <n>       Pause after each screen, in milliseconds
+
       Commands:
         {HostServiceRegistration.ServiceSwitch}   Run the scheduler (Windows SCM or systemd)
         --install, -i       Install the service (Windows SCM or systemd)
@@ -156,6 +169,9 @@ public static class SchedulerHost {
         --stop              Stop the service
         --status            Query service status
         --prepare-data      Create scripts, logs, and shared settings (elevated)
+        --scripts-dir <dir> Scripts folder for --prepare-data (default C:\MaksIT\Scripts)
+        --log-dir <dir>     Logs folder for --prepare-data (default C:\MaksIT\Logs)
+        --layout <name>     standard or portable, with --prepare-data / --install
         --portable          With --install / --prepare-data: keep data in the install folder
         --help, -h          Show this help message
 
@@ -220,14 +236,41 @@ public static class SchedulerHost {
     return 1;
   }
 
-  private static int PrepareDataDirectories(string installDirectory, bool portable) {
-    var layout = HostDataDirectories.ResolveLayout(installDirectory, portable);
+  private static int PrepareDataDirectories(string installDirectory, PrepareDataRequest request) {
+    var layout = HostDataDirectories.ResolveLayout(
+      installDirectory,
+      request.Portable,
+      request.ScriptsDirectory,
+      request.LogDirectory);
     Console.WriteLine($"Install:  {installDirectory}");
     Console.WriteLine($"Type:     {(layout.Portable ? "portable" : "standard")}");
     Console.WriteLine($"Settings: {layout.SharedSettingsFile}");
     Console.WriteLine($"Scripts:  {layout.ScriptsDirectory}");
     Console.WriteLine($"Logs:     {layout.LogDirectory}");
     return 0;
+  }
+
+  private readonly record struct PrepareDataRequest(bool Portable, string? ScriptsDirectory, string? LogDirectory);
+
+  private static PrepareDataRequest ReadPrepareRequest(string[] args) {
+    var portable = HasFlag(args, "--portable");
+    var layout = OptionValue(args, "--layout");
+
+    if (string.Equals(layout, "portable", StringComparison.OrdinalIgnoreCase))
+      portable = true;
+    else if (string.Equals(layout, "standard", StringComparison.OrdinalIgnoreCase))
+      portable = false;
+
+    return new PrepareDataRequest(portable, OptionValue(args, "--scripts-dir"), OptionValue(args, "--log-dir"));
+  }
+
+  private static string? OptionValue(string[] args, string name) {
+    for (var i = 0; i < args.Length - 1; i++) {
+      if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+        return args[i + 1];
+    }
+
+    return null;
   }
 
   private static bool HasFlag(string[] args, string name) =>
