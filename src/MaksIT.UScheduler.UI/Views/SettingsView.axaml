@@ -10,38 +10,40 @@
   </UserControl.Resources>
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="8">
-      <controls:GroupBox Header="Service Control">
-        <Grid RowDefinitions="Auto,Auto,Auto">
+      <controls:GroupBox Header="Service">
+        <Grid RowDefinitions="Auto,Auto">
           <TextBlock Text="{Binding AppSettingsLoadError}"
                      IsVisible="{Binding HasAppSettingsLoadError}"
                      Classes="warning"
                      TextWrapping="Wrap"
                      Margin="0,0,0,8" />
 
-          <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
-            <TextBlock Text="Service Bin Path:"
+          <StackPanel Grid.Row="1"
+                      Orientation="Horizontal"
+                      Spacing="8"
+                      VerticalAlignment="Center">
+            <TextBlock Text="Name:"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding ServiceName}"
                        VerticalAlignment="Center"
-                       Margin="0,0,10,0"
-                       FontWeight="Bold" />
-            <TextBox Grid.Column="1"
-                     Text="{Binding ServiceBinPath}"
-                     VerticalAlignment="Center" />
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
-              <Button Content="..." Command="{Binding BrowseServiceBinPathCommand}" MinWidth="30" />
-              <Button Content="Reload" Command="{Binding ReloadAppSettingsCommand}" MinWidth="50" />
-            </StackPanel>
-          </Grid>
-
-          <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="Service:" FontWeight="Bold" />
-            <TextBlock Text="{Binding ServiceName}" Margin="6,0,16,0" />
-            <TextBlock Text="Status:" FontWeight="Bold" />
+                       Margin="0,0,8,0" />
+            <TextBlock Text="Status:"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center" />
             <Ellipse Width="12"
                      Height="12"
-                     Margin="6,0,6,0"
                      VerticalAlignment="Center"
                      Fill="{Binding ServiceStatusColor, Converter={StaticResource NamedColorBrush}}" />
-            <TextBlock Text="{Binding ServiceStatusText}" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding ServiceStatusText}"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0" />
+            <Button Content="Reload"
+                    Command="{Binding ReloadAppSettingsCommand}"
+                    MinWidth="70"
+                    VerticalAlignment="Center"
+                    Margin="0" />
           </StackPanel>
         </Grid>
       </controls:GroupBox>
@@ -51,8 +53,8 @@
                  TextWrapping="Wrap"
                  Margin="0,0,0,8" />
 
-      <controls:GroupBox Header="Shared settings">
-        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*">
+      <controls:GroupBox Header="Locations">
+        <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*">
           <TextBlock Text="Settings file:"
                      VerticalAlignment="Center"
                      Margin="0,0,10,8"
@@ -64,26 +66,23 @@
           <TextBlock Grid.Row="1"
                      Text="Scripts:"
                      VerticalAlignment="Center"
-                     Margin="0,0,10,0"
+                     Margin="0,0,10,8"
                      FontWeight="Bold" />
           <TextBox Grid.Row="1"
                    Grid.Column="1"
                    Text="{Binding ScriptsDirectory}"
+                   Margin="0,0,0,8"
                    IsReadOnly="True" />
-        </Grid>
-      </controls:GroupBox>
-
-      <controls:GroupBox Header="Log Path">
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Text="Log Directory:"
+          <TextBlock Grid.Row="2"
+                     Text="Log directory:"
                      VerticalAlignment="Center"
                      Margin="0,0,10,0"
                      FontWeight="Bold" />
-          <TextBox Text="{Binding LogDirectory}"
-                   MinWidth="300"
-                   VerticalAlignment="Center"
+          <TextBox Grid.Row="2"
+                   Grid.Column="1"
+                   Text="{Binding LogDirectory}"
                    IsReadOnly="True" />
-        </StackPanel>
+        </Grid>
       </controls:GroupBox>
     </StackPanel>
   </ScrollViewer>

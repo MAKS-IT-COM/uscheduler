@@ -2,6 +2,15 @@
 
 Short notes shown in the app after an upgrade. The full history, including maintainer notes, is [CHANGELOG.md](CHANGELOG.md).
 
+## [Unreleased]
+
+## [1.5.0] - 2026-10-10
+
+- A console program in the shared settings is kept running under the service. It starts and stops with the service, and restarts when it exits.
+- The Processes tab names each program and can start, stop, or restart it through the running service.
+- The window remembers its size, position, and state.
+- Settings shows the settings file, scripts folder, and log directory. The service is this same program, so there is no service folder to set.
+
 ## [1.4.0] - 2026-10-05
 
 - After an upgrade, What's New lists additions since the version you last opened.

@@ -16,6 +16,7 @@
       <li>Register, start, and stop the service (prompts for elevation)</li>
       <li>Windows and Linux script compatibility flags</li>
       <li>After an upgrade, What's New lists additions since the version you last opened</li>
+      <li>Keep a console program running under the service, and start or stop it from the Processes tab</li>
     </ul>
   </description>
   <launchable type="desktop-id">com.maks_it.uscheduler.desktop</launchable>
@@ -40,6 +41,12 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.5.0" date="2026-10-10">
+      <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.5.0/CHANGELOG.md</url>
+      <description>
+        <p>The Processes tab keeps console programs running under the service. The window remembers its size and position.</p>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-10-05">
       <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.4.0/CHANGELOG.md</url>
       <description>

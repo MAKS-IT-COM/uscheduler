@@ -1,0 +1,33 @@
+{
+  "Shots": [
+    {
+      "Id": "main",
+      "File": "main.png"
+    },
+    {
+      "Id": "processes",
+      "File": "processes.png"
+    },
+    {
+      "Id": "logs",
+      "File": "logs.png"
+    },
+    {
+      "Id": "script-logs",
+      "File": "script-logs.png"
+    },
+    {
+      "Id": "settings",
+      "File": "settings.png"
+    },
+    {
+      "Id": "about",
+      "File": "about.png"
+    },
+    {
+      "Id": "program-log",
+      "File": "program-log.png"
+    }
+  ],
+  "Skipped": []
+}

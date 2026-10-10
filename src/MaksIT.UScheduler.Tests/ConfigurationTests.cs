@@ -139,8 +139,12 @@ public class ConfigurationTests {
     // Assert
     Assert.Equal(@"C:\app.exe", process.Path);
     Assert.Null(process.Args);
-    Assert.False(process.RestartOnFailure); // Default should be false
-    Assert.False(process.Disabled);         // Default should be false
+    Assert.Null(process.Directory);
+    Assert.True(process.RestartOnFailure);
+    Assert.Equal(0, process.RestartDelayMs);
+    Assert.Equal(1500, process.ThrottleMs);
+    Assert.False(process.Disabled);
+    Assert.Null(process.Name);
   }
 
   [Fact]
@@ -164,9 +168,9 @@ public class ConfigurationTests {
     var process = new ProcessConfiguration { Path = @"C:\app.exe" };
 
     // Act
-    process.RestartOnFailure = true;
+    process.RestartOnFailure = false;
 
     // Assert
-    Assert.True(process.RestartOnFailure);
+    Assert.False(process.RestartOnFailure);
   }
 }

@@ -28,6 +28,9 @@
       <TabItem Header="Main">
         <views:ScriptsView />
       </TabItem>
+      <TabItem Header="Processes">
+        <views:ProcessesView />
+      </TabItem>
       <TabItem Header="Logs">
         <views:LogsView />
       </TabItem>

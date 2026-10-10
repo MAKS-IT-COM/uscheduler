@@ -11,7 +11,7 @@ Hardware checkboxes (keyboard, memory, processor) stay in [CONTRIBUTING.md](../.
 Shown at the top of the listing. The field allows 1,000 characters. Keep this under 270 so every Store view shows the full sentence.
 
 ```text
-Schedule PowerShell scripts and console programs on this PC. Register the service, edit when each script runs, and read logs from one window. The window stays unelevated. Register, start, and stop ask for approval in place.
+Schedule PowerShell scripts on this PC, and keep console programs running. Register the service, edit when each script runs, and read logs from one window. The window stays unelevated. Register, start, and stop ask for approval in place.
 ```
 
 ## Description
@@ -19,7 +19,7 @@ Schedule PowerShell scripts and console programs on this PC. Register the servic
 Required. Up to 10,000 characters. This text is different from the short description so the page does not repeat the same paragraph.
 
 ```text
-Run PowerShell scripts and console programs on a schedule without leaving a terminal open.
+Run PowerShell scripts on a schedule, and keep console programs running, without leaving a terminal open.
 
 The same program is the window and the Windows service. Register, start, stop, and unregister ask for administrator approval in place. The window stays open and does not restart as administrator. Launch starts the selected script now through the running service. That run ignores the schedule and the minimum interval.
 

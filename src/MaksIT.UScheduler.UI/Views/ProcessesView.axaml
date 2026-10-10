@@ -1,0 +1,130 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+             xmlns:controls="using:MaksIT.UScheduler.UI.Controls"
+             xmlns:local="using:MaksIT.UScheduler.UI"
+             x:Class="MaksIT.UScheduler.UI.Views.ProcessesView"
+             x:Name="ProcessesRoot"
+             x:DataType="vm:MainViewModel">
+  <UserControl.Styles>
+    <Style Selector="TextBox.arguments">
+      <Setter Property="AcceptsReturn" Value="True" />
+    </Style>
+  </UserControl.Styles>
+  <UserControl.Resources>
+    <local:NamedColorBrushConverter x:Key="NamedColorBrush" />
+  </UserControl.Resources>
+  <Grid ColumnDefinitions="280,*">
+    <controls:GroupBox Header="Programs">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Bottom"
+                   Classes="hint"
+                   TextWrapping="Wrap"
+                   Margin="0,8,0,0"
+                   Text="Kept running by the service. Save writes the list. Start, Stop, and Restart act on the saved program." />
+        <ListBox ItemsSource="{Binding Processes}"
+                 SelectedItem="{Binding SelectedProcess}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:SupervisedProcessRow">
+              <StackPanel Margin="0,4" Opacity="{Binding ListOpacity}">
+                <TextBlock Text="{Binding ListTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ListDetail}"
+                           Classes="hint"
+                           Margin="0,2,0,0"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </controls:GroupBox>
+
+    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+      <ContentControl Content="{Binding SelectedProcess}" Margin="8,0,0,0">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="vm:SupervisedProcessRow">
+            <StackPanel>
+              <controls:GroupBox Header="Status">
+                <StackPanel Spacing="8">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Status:" FontWeight="Bold" VerticalAlignment="Center" />
+                    <Ellipse Width="10"
+                             Height="10"
+                             VerticalAlignment="Center"
+                             Fill="{Binding StatusColor, Converter={StaticResource NamedColorBrush}}" />
+                    <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
+                    <TextBlock Text="Process:" FontWeight="Bold" VerticalAlignment="Center" Margin="16,0,0,0" />
+                    <TextBlock Text="{Binding ProcessIdText}" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Started:" FontWeight="Bold" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding StartedText}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <TextBlock Text="Last exit:" FontWeight="Bold" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding LastExitText}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </StackPanel>
+              </controls:GroupBox>
+
+              <controls:GroupBox Header="Program">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+                  <TextBlock Text="Name:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,8" />
+                  <TextBox Grid.Column="1"
+                           Text="{Binding Name}"
+                           PlaceholderText="Shown in the list. The file name is used when this is empty"
+                           Margin="0,0,0,8" />
+
+                  <TextBlock Grid.Row="1" Text="Path:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,8" />
+                  <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                    <TextBox Text="{Binding Path}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Content="Browse"
+                            Command="{Binding #ProcessesRoot.DataContext.BrowseProcessCommand}"
+                            Margin="8,0,0,0" />
+                  </Grid>
+
+                  <TextBlock Grid.Row="2" Text="Arguments:" VerticalAlignment="Top" FontWeight="Bold" Margin="0,4,10,8" />
+                  <TextBox Grid.Row="2"
+                           Grid.Column="1"
+                           Classes="arguments"
+                           AcceptsReturn="True"
+                           Text="{Binding Arguments}"
+                           MinHeight="72"
+                           TextWrapping="Wrap"
+                           PlaceholderText="One argument on each line"
+                           Margin="0,0,0,8" />
+
+                  <TextBlock Grid.Row="3" Text="Directory:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,8" />
+                  <TextBox Grid.Row="3"
+                           Grid.Column="1"
+                           Text="{Binding Directory}"
+                           PlaceholderText="Executable directory when empty"
+                           Margin="0,0,0,8" />
+
+                  <CheckBox Grid.Row="4"
+                            Grid.ColumnSpan="2"
+                            Content="Restart when it exits"
+                            IsChecked="{Binding RestartOnExit}"
+                            Margin="0,0,0,8" />
+
+                  <TextBlock Grid.Row="5" Text="Restart delay:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,8" />
+                  <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBox Text="{Binding RestartDelayMs}" Width="80" />
+                    <TextBlock Text="ms after a run that stayed up" VerticalAlignment="Center" Classes="hint" Margin="8,0,0,0" />
+                  </StackPanel>
+
+                  <TextBlock Grid.Row="6" Text="Throttle:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0" />
+                  <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal">
+                    <TextBox Text="{Binding ThrottleMs}" Width="80" />
+                    <TextBlock Text="ms. A shorter run waits at least this long" VerticalAlignment="Center" Classes="hint" Margin="8,0,0,0" />
+                  </StackPanel>
+                </Grid>
+              </controls:GroupBox>
+
+              <CheckBox Content="Disabled" IsChecked="{Binding Disabled}" Margin="8,0,0,0" />
+            </StackPanel>
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

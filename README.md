@@ -33,6 +33,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
     - [Main View — Schedule Management](#main-view--schedule-management)
     - [Service Logs View](#service-logs-view)
     - [Script Logs View](#script-logs-view)
+    - [Processes](#processes)
   - [Configuration](#configuration)
     - [Machine-wide `settings.json`](#machine-wide-settingsjson)
     - [Path Resolution](#path-resolution)
@@ -73,10 +74,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit format, and
 * **Fully portable** – relocate between machines without reconfiguration.
 * **Windows and Linux** – Windows SCM or systemd; Avalonia UI on both.
 * **Strongly typed configuration** via machine-wide `settings.json` (ProgramData).
-* **Parallel execution** – PowerShell scripts & executables run concurrently using RunspacePool and Task.WhenAll.
+* **Parallel execution** – PowerShell scripts run together in a RunspacePool. Console programs run side by side under the service and do not block each other.
 * **Relative path support** – script paths can be relative to `C:\MaksIT\Scripts`.
 * **Signature enforcement** (AllSigned by default).
-* **Automatic restart-on-failure** for supervised processes.
+* **Service wrapper for console programs** – a configured program starts with the service, restarts when it exits, and stops when the service stops.
 * **Extensible logging** (file + console + Windows EventLog).
 * **Built-in CLI** for service management (`--install`, `--uninstall`, `--start`, `--stop`, `--status`).
 * **Reusable scheduling module**: `SchedulerTemplate.psm1`.
@@ -98,7 +99,7 @@ The Windows setup exe lets you choose **Standard** or **Portable**.
 | `C:\MaksIT\Scripts` | Scheduled scripts (all users). The Windows setup exe (and `--install` / `--prepare-data`) copies bundled examples only into missing folders; existing scripts are never overwritten. | Users (after install) |
 | `C:\MaksIT\Logs` | Service and script logs | Users (after install) |
 | `%ProgramData%\MaksIT\UScheduler\settings.json` | Shared schedule configuration | Users (after install) |
-| `%AppData%\MaksIT\UScheduler\settings.json` | Per-user UI prefs (service bin path override) | Current user |
+| `%AppData%\MaksIT\UScheduler\settings.json` | Per-user UI prefs (window size, position, and What's New) | Current user |
 
 **Portable** (everything in one folder):
 
@@ -227,22 +228,25 @@ Linux uses X11/XWayland (Avalonia native Wayland still hangs on GNOME). The sand
 
 The Settings view is your starting point for configuring UScheduler.
 
-![Settings view](./assets/MaksIT.UScheduler.ScheduleManager_aYFXXtK8V2.png)
+<!-- microsoft-store 2 -->
+![Settings view](./assets/screenshots/settings.png)
 
 | Feature | Description |
 |---------|-------------|
-| **Service Bin Path** | Folder that contains `MaksIT.UScheduler.UI` (auto-detected from Program Files or a portable folder; override stored in `%AppData%/MaksIT/UScheduler/settings.json` or `Data\ui-settings.json` when portable) |
-| **Service Status** | Real-time status indicator (Running, Stopped, Starting, Stopping, Paused, Not Installed) |
+| **Service** | Installed service name and status (Running, Stopped, Starting, Stopping, Paused, Not Installed). The service is this same program |
+| **Locations** | Settings file, scripts folder, and log directory used by the window and the service |
 | **Register/Unregister** | Install or remove the Windows service or systemd unit (UAC / polkit prompt, UI stays open) |
 | **Start/Stop** | Control the service state (same in-app elevation) |
 | **Refresh** | Update the current service status display |
-| **Reload Settings** | Refresh shared configuration from `%ProgramData%\MaksIT\UScheduler\settings.json` (or `Data\settings.json` when portable) |
+| **Reload** | Refresh the service status and the shared settings from `%ProgramData%\MaksIT\UScheduler\settings.json` (or `Data\settings.json` when portable) |
+| **Open logs** | Open the log directory |
 
 ### Main View — Schedule Management
 
 The Main view allows you to manage script schedules and execution settings.
 
-![Main view](./assets/MaksIT.UScheduler.ScheduleManager_M7ZQAkaymD.png)
+<!-- microsoft-store 1 -->
+![Main view](./assets/screenshots/main.png)
 
 **Script List Panel:**
 - Lists all PowerShell scripts configured in shared `settings.json`
@@ -255,7 +259,7 @@ The Main view allows you to manage script schedules and execution settings.
 | Setting | Description |
 |---------|-------------|
 | **Name** | Display name for the script |
-| **Is Signed** | Require script to be digitally signed (AllSigned policy) |
+| **Require signed script** | Require the script to be digitally signed (AllSigned policy) |
 | **Disabled** | Skip this script during scheduled execution |
 
 **Schedule Configuration:**
@@ -281,27 +285,34 @@ The Main view allows you to manage script schedules and execution settings.
 
 Monitor the UScheduler service activity and troubleshoot issues.
 
-![Logs view](./assets/MaksIT.UScheduler.ScheduleManager_MiY7biadQg.png)
+<!-- microsoft-store 4 -->
+![Logs view](./assets/screenshots/logs.png)
 
 Features:
 - Browse service log files sorted by date
 - View log content directly in the application
-- Open log files in Windows Explorer
+- **Open Folder** opens the log directory. With a file selected, **Show in folder** opens that file's folder
 - Refresh logs to see latest entries
 
 ### Script Logs View
 
 View execution logs for individual scheduled scripts.
 
-![Script logs view](./assets/MaksIT.UScheduler.ScheduleManager_HjRiCd1jnn.png)
+<!-- microsoft-store 3 -->
+![Script logs view](./assets/screenshots/script-logs.png)
 
 Features:
 - Browse log folders organized by script name
 - Select and view individual log files
 - Track script execution history and errors
-- Open logs in Explorer for external tools
+- **Open Folder** opens the log directory. With a file selected, **Show in folder** opens that file's folder
 
+### Processes
 
+<!-- microsoft-store 5 -->
+![Processes](./assets/screenshots/processes.png)
+
+The Processes tab lists programs the service keeps running. Each row shows whether that program is running, restarting, stopped, or waiting for the service. Name is the label in the list. Add a program, set its path, arguments, and working directory, then Save. Remove drops it from the service. Start, Stop, and Restart ask the running service to act on the saved program. Stop leaves it down until Start, or until the service itself starts again.
 
 ## Configuration
 
@@ -324,7 +335,7 @@ Host logging (log levels, Event Log source) stays in shipped `appsettings.json` 
     ],
 
     "Processes": [
-      { "Path": "C:\\Tools\\MyApp.exe", "Args": ["--option"], "RestartOnFailure": true, "Disabled": false }
+      { "Name": "My app", "Path": "C:\\Tools\\MyApp.exe", "Args": ["--option"], "Directory": "C:\\Tools", "RestartOnFailure": true }
     ]
   }
 }
@@ -370,12 +381,18 @@ The `"Default": "Information"` setting controls the minimum severity of messages
 
 ### Processes
 
+A program listed here is kept running under the service, in the role filled by a tool such as NSSM. It is not on the script schedule. The Processes tab edits this list.
+
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `Path` | string | required | Path to executable (absolute or relative) |
+| `Name` | string | empty | Label in the Processes list. Empty uses the executable file name |
+| `Path` | string | required | Path to the executable (absolute, or relative to the install directory) |
 | `Args` | string[] | `null` | Command-line arguments |
-| `RestartOnFailure` | bool | `false` | Restart process if it exits with non-zero code |
-| `Disabled` | bool | `false` | `true` skips this process during execution |
+| `Directory` | string | empty | Working directory. Empty uses the executable's own directory |
+| `RestartOnFailure` | bool | `true` | `true` starts the program again after any exit. `false` leaves it stopped |
+| `RestartDelayMs` | number | `0` | Wait before a restart after a run that lasted at least `ThrottleMs` |
+| `ThrottleMs` | number | `1500` | A shorter run waits at least this long before the next start, and longer if it keeps exiting immediately, up to one minute |
+| `Disabled` | bool | `false` | `true` does not start this program |
 
 ---
 
@@ -401,10 +418,10 @@ param (
 
 ### Execution Model
 
-Scripts and processes run **in parallel** using:
+Scripts and processes run **in parallel**:
 
-- **PowerShell**: `RunspacePool` (up to CPU core count concurrent runspaces)
-- **Processes**: `Task.WhenAll` for concurrent process execution
+- **PowerShell**: `RunspacePool` (up to CPU core count concurrent runspaces). The check waits until that round of scripts finishes, then runs again after 10 seconds.
+- **Processes**: each configured program is a service of its own. It starts when UScheduler starts, and a program that is still running is left alone. Settings are checked again after 10 seconds.
 
 ```
 Unified Scheduler Service
@@ -412,15 +429,17 @@ Unified Scheduler Service
 │   ├── ScriptA.ps1     ─┐
 │   ├── ScriptB.ps1     ─┼─ Parallel execution
 │   └── ScriptC.ps1     ─┘
-└── ProcessBackgroundService (Task.WhenAll)
+└── ProcessBackgroundService
     ├── ProgramA.exe    ─┐
     ├── ProgramB.exe    ─┼─ Parallel execution
     └── ProgramC.exe    ─┘
 ```
 
-- A failure in one script/process **never stops the service** or other components.
-- The same script/process won't run twice concurrently (protected by "already running" check).
-- Execution cycle repeats every 10 seconds.
+- A failure in one script or program **never stops the service** or the others.
+- The same script or program is not started twice while it is still running.
+- Stopping the service stops the programs too.
+- With `RestartOnFailure` (the default), a program is started again after it exits, whatever the exit code. Set it to `false` to leave the program stopped.
+- A program that exits sooner than `ThrottleMs` waits before the next start, so a crash loop does not spin. Standard output and error go to that program's log.
 
 ---
 

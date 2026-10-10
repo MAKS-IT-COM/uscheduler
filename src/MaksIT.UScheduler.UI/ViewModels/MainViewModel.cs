@@ -1,8 +1,7 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.IO;
-using CommunityToolkit.Mvvm.ComponentModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 using MaksIT.UScheduler.Shared;
 using MaksIT.UScheduler.UI.Models;
 using MaksIT.UScheduler.UI.Services;
@@ -13,7 +12,6 @@ namespace MaksIT.UScheduler.UI.ViewModels;
 public partial class MainViewModel : ObservableObject {
   private readonly IDialogService _dialogs;
   private readonly ScriptSettingsService _scriptSettingsService;
-  private readonly UISettingsService _uiSettingsService;
   private readonly AppSettingsService _appSettingsService;
   private readonly ScriptStatusService _scriptStatusService;
   private readonly LogViewerService _logViewerService;
@@ -24,7 +22,6 @@ public partial class MainViewModel : ObservableObject {
   public MainViewModel(IDialogService dialogs) {
     _dialogs = dialogs;
     _scriptSettingsService = new ScriptSettingsService();
-    _uiSettingsService = new UISettingsService();
     _appSettingsService = new AppSettingsService();
     _scriptStatusService = new ScriptStatusService();
     _logViewerService = new LogViewerService();
@@ -49,18 +46,21 @@ public partial class MainViewModel : ObservableObject {
     foreach (var weekday in WeekdayOptions)
       weekday.PropertyChanged += OnScheduleOptionChanged;
 
-    LoadUISettings();
+    LoadServiceAppSettings();
     RefreshScripts();
     RefreshServiceStatus();
     RefreshServiceLogs();
 
     ScriptsPage = new ScriptsPage(this);
+    ProcessesPage = new ProcessesPage(this);
     LogsPage = new LogsPage(this);
     SettingsPage = new SettingsPage(this);
-    Pages = [ScriptsPage, LogsPage, SettingsPage];
+    Pages = [ScriptsPage, ProcessesPage, LogsPage, SettingsPage];
   }
 
   public ScriptsPage ScriptsPage { get; }
+
+  public ProcessesPage ProcessesPage { get; }
 
   public LogsPage LogsPage { get; }
 
@@ -71,7 +71,8 @@ public partial class MainViewModel : ObservableObject {
   [ObservableProperty]
   private int selectedPageIndex;
 
-  public IShellPage ActivePage => Pages[SelectedPageIndex];
+  public IShellPage ActivePage =>
+    Pages[SelectedPageIndex];
 
   partial void OnSelectedPageIndexChanged(int value) =>
     OnPropertyChanged(nameof(ActivePage));
@@ -81,70 +82,52 @@ public partial class MainViewModel : ObservableObject {
       MarkDirty();
   }
 
-  private void LoadUISettings() {
-    var uiSettings = _uiSettingsService.Load();
-    ServiceBinPath = uiSettings.ServiceBinPath ?? string.Empty;
-    LoadServiceAppSettings();
-  }
+  private static string ApplicationDirectory =>
+    AppContext.BaseDirectory;
 
-  private string ResolvedServiceBinPath => UISettingsService.ResolvePath(ServiceBinPath);
-
-  private string ResolvedExecutablePath => string.IsNullOrEmpty(ResolvedServiceBinPath)
-    ? string.Empty
-    : Path.Combine(ResolvedServiceBinPath, HostServiceManager.GetExecutableFileName());
+  private static string ResolvedExecutablePath =>
+    HostServiceManager.ResolveExecutablePath(ApplicationDirectory) ?? string.Empty;
 
   private void LoadServiceAppSettings() {
-    var bin = ResolvedServiceBinPath;
-    var seedPath = string.IsNullOrEmpty(bin)
-      ? null
-      : Path.Combine(bin, ConfigurationFileService.SeedFileName);
+    var bin = ApplicationDirectory;
+    var seedPath = Path.Combine(bin, ConfigurationFileService.SeedFileName);
     var sharedSettingsPath = HostPaths.ResolveSharedSettingsFile(bin);
     var sharedExists = File.Exists(sharedSettingsPath);
-    var seedExists = !string.IsNullOrEmpty(seedPath) && File.Exists(seedPath);
+    var seedExists = File.Exists(seedPath);
 
     if (!sharedExists && !seedExists) {
       _serviceConfig = null;
-      AppSettingsLoadError = "Set Service Bin Path to the install folder (seed appsettings.json), or register the service to create shared settings.";
+      AppSettingsLoadError = "Shared settings were not found. Register the service to create data folders.";
       ServiceName = string.Empty;
       LogDirectory = string.Empty;
       ScriptsDirectory = HostPaths.ResolveScriptsDirectory(startDirectory: bin);
-      SharedSettingsPath = string.IsNullOrEmpty(bin) ? HostPaths.ResolveSharedSettingsFile() : sharedSettingsPath;
-      ProcessList.Clear();
+      SharedSettingsPath = sharedSettingsPath;
+      LoadProcesses();
       return;
     }
 
     _serviceConfig = _appSettingsService.Load(bin, seedPath);
+
     if (_serviceConfig != null) {
       AppSettingsLoadError = null;
       _serviceManager = new HostServiceManager(_serviceConfig.ServiceName);
       ServiceName = _serviceConfig.ServiceName;
       LogDirectory = _serviceConfig.GetEffectiveLogDirectory(bin);
       ScriptsDirectory = _serviceConfig.GetEffectiveScriptsDirectory(bin);
-      SharedSettingsPath = _appSettingsService.SettingsPath ?? HostPaths.ResolveSharedSettingsFile(bin);
-      ProcessList.Clear();
-      foreach (var p in _serviceConfig.Processes)
-        ProcessList.Add(p);
+      SharedSettingsPath = _appSettingsService.SettingsPath ?? sharedSettingsPath;
+      LoadProcesses();
     }
     else {
       AppSettingsLoadError = "Failed to load shared settings. Register the service once to create writable data folders.";
       ServiceName = string.Empty;
       LogDirectory = string.Empty;
       ScriptsDirectory = HostPaths.ResolveScriptsDirectory(startDirectory: bin);
-      SharedSettingsPath = HostPaths.ResolveSharedSettingsFile(bin);
-      ProcessList.Clear();
+      SharedSettingsPath = sharedSettingsPath;
+      LoadProcesses();
     }
   }
 
-  private void SaveUISettings() {
-    _uiSettingsService.Save(new UISettings {
-      ServiceBinPath = ServiceBinPath
-    });
-  }
-
   #region AppSettings
-
-  [ObservableProperty]
-  private string _serviceBinPath = string.Empty;
 
   [ObservableProperty]
   private string _serviceName = "MaksIT.UScheduler";
@@ -161,20 +144,6 @@ public partial class MainViewModel : ObservableObject {
 
   public bool HasAppSettingsLoadError =>
     !string.IsNullOrEmpty(AppSettingsLoadError);
-
-  [RelayCommand]
-  private async Task BrowseServiceBinPath() {
-    var folder = await _dialogs.PickFolderAsync("Select MaksIT.UScheduler bin folder");
-    if (string.IsNullOrEmpty(folder))
-      return;
-
-    ServiceBinPath = folder;
-    SaveUISettings();
-    LoadServiceAppSettings();
-    RefreshScripts();
-    RefreshServiceStatus();
-    RefreshServiceLogs();
-  }
 
   [RelayCommand]
   private void ReloadAppSettings() {
@@ -206,6 +175,7 @@ public partial class MainViewModel : ObservableObject {
   [RelayCommand]
   private async Task StartService() {
     var result = _serviceManager.Start(ResolvedExecutablePath);
+
     if (!result.Success)
       await _dialogs.ShowMessageAsync("Start Service", result.Message);
 
@@ -215,6 +185,7 @@ public partial class MainViewModel : ObservableObject {
   [RelayCommand]
   private async Task StopService() {
     var result = _serviceManager.Stop(ResolvedExecutablePath);
+
     if (!result.Success)
       await _dialogs.ShowMessageAsync("Stop Service", result.Message);
 
@@ -226,7 +197,7 @@ public partial class MainViewModel : ObservableObject {
     if (string.IsNullOrWhiteSpace(ResolvedExecutablePath) || !File.Exists(ResolvedExecutablePath)) {
       await _dialogs.ShowMessageAsync(
         "Register Service",
-        $"Could not find {HostServiceManager.GetExecutableFileName()}. Set Service Bin Path to the install folder.");
+        $"Could not find {HostServiceManager.GetExecutableFileName()} next to this program.");
       return;
     }
 
@@ -265,9 +236,6 @@ public partial class MainViewModel : ObservableObject {
 
   [ObservableProperty]
   private ObservableCollection<ScriptSchedule> _scripts = [];
-
-  [ObservableProperty]
-  private ObservableCollection<ProcessConfiguration> _processList = [];
 
   [ObservableProperty]
   private ScriptSchedule? _selectedScript;
@@ -361,6 +329,7 @@ public partial class MainViewModel : ObservableObject {
       return;
 
     var entry = _serviceConfig.Powershell.FirstOrDefault(p => p.Path == configScriptPath);
+
     if (entry != null) {
       if (name != null)
         entry.Name = name;
@@ -380,6 +349,7 @@ public partial class MainViewModel : ObservableObject {
       return true;
 
     var prepare = _serviceManager.PrepareData(ResolvedExecutablePath);
+
     if (!prepare.Success)
       return false;
 
@@ -392,6 +362,7 @@ public partial class MainViewModel : ObservableObject {
   [RelayCommand]
   private void RefreshScripts() {
     Scripts.Clear();
+
     if (_serviceConfig == null)
       return;
 
@@ -401,18 +372,22 @@ public partial class MainViewModel : ObservableObject {
 
       var resolvedScriptPath = _appSettingsService.ResolvePathRelativeToScripts(psConfig.Path);
       var scriptDir = Path.GetDirectoryName(resolvedScriptPath);
+
       if (string.IsNullOrEmpty(scriptDir))
         continue;
 
       var settingsPath = Path.Combine(scriptDir, "scriptsettings.json");
+
       if (!File.Exists(settingsPath))
         continue;
 
       var schedule = _scriptSettingsService.LoadScheduleFromFile(settingsPath);
+
       if (schedule is null)
         continue;
 
       schedule.ConfigScriptPath = psConfig.Path;
+
       if (!string.IsNullOrWhiteSpace(psConfig.Name))
         schedule.Name = psConfig.Name;
 
@@ -432,6 +407,7 @@ public partial class MainViewModel : ObservableObject {
       return;
 
     var path = SelectedScript.ConfigScriptPath;
+
     if (string.IsNullOrWhiteSpace(path)) {
       await _dialogs.ShowMessageAsync("Launch Script", "This script is not in the service configuration.");
       return;
@@ -455,6 +431,7 @@ public partial class MainViewModel : ObservableObject {
     }
 
     var formattedTime = time.ToString("HH:mm");
+
     if (!RunTimes.Contains(formattedTime)) {
       RunTimes.Add(formattedTime);
       MarkDirty();
@@ -631,10 +608,12 @@ public partial class MainViewModel : ObservableObject {
   partial void OnSelectedScriptLogFolderChanged(string? value) {
     ScriptLogFiles.Clear();
     SelectedLogFile = null;
+
     if (string.IsNullOrEmpty(value))
       return;
 
     var resolvedLogDir = ResolvedLogDirectory;
+
     if (string.IsNullOrEmpty(resolvedLogDir))
       return;
 
@@ -647,12 +626,13 @@ public partial class MainViewModel : ObservableObject {
   }
 
   private string ResolvedLogDirectory =>
-    _serviceConfig?.GetEffectiveLogDirectory(ResolvedServiceBinPath) ?? string.Empty;
+    _serviceConfig?.GetEffectiveLogDirectory(ApplicationDirectory) ?? string.Empty;
 
   [RelayCommand]
   private void RefreshServiceLogs() {
     ServiceLogs.Clear();
     var resolvedLogDir = ResolvedLogDirectory;
+
     if (string.IsNullOrEmpty(resolvedLogDir))
       return;
 
@@ -670,6 +650,7 @@ public partial class MainViewModel : ObservableObject {
     SelectedLogFile = null;
 
     var resolvedLogDir = ResolvedLogDirectory;
+
     if (string.IsNullOrEmpty(resolvedLogDir))
       return;
 
@@ -702,6 +683,7 @@ public partial class MainViewModel : ObservableObject {
   [RelayCommand]
   private async Task OpenLogDirectory() {
     var resolvedLogDir = ResolvedLogDirectory;
+
     if (string.IsNullOrEmpty(resolvedLogDir) || !Directory.Exists(resolvedLogDir)) {
       await _dialogs.ShowMessageAsync("Error", "Log directory not found.");
       return;

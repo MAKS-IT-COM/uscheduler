@@ -127,8 +127,11 @@ public static class SchedulerHost {
         EventLogSettings, EventLogLoggerProvider>(builder.Services);
     }
 
+    builder.Services.AddSingleton<IProcessStatusStore, ProcessStatusFileStore>();
     builder.Services.AddSingleton<IProcessService, ProcessService>();
-    builder.Services.AddHostedService<ProcessBackgroundService>();
+    builder.Services.AddSingleton<ProcessBackgroundService>();
+    builder.Services.AddHostedService(provider => provider.GetRequiredService<ProcessBackgroundService>());
+    builder.Services.AddHostedService<ProcessControlListener>();
 
     builder.Services.AddSingleton<IPSScriptService, PSScriptService>();
     builder.Services.AddHostedService<ScriptRunListener>();
@@ -147,6 +150,12 @@ public static class SchedulerHost {
 
       With no command, this program opens the desktop window.
       The registered service starts the same program with {HostServiceRegistration.ServiceSwitch}.
+
+      Window:
+        --screenshots <dir>   Save PNGs of the main screens, then exit
+        --views <ids>         Limit --screenshots to comma-separated ids
+                              (main, processes, logs, script-logs, settings, about, program-log)
+        --settle-ms <n>       Pause after each screen, in milliseconds
 
       Commands:
         {HostServiceRegistration.ServiceSwitch}   Run the scheduler (Windows SCM or systemd)

@@ -1,146 +1,33 @@
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Threading;
+using MaksIT.Core.UI.Errors;
 using MaksIT.UScheduler.Shared;
-using MaksIT.UScheduler.UI.ViewModels;
-using MaksIT.UScheduler.UI.Windows;
+using CoreErrorDialog = MaksIT.Core.UI.Errors.ErrorDialog;
 
 
 namespace MaksIT.UScheduler.UI.Dialogs;
 
-
 internal static class ErrorDialog {
-  private static int _open;
+  private static int _ready;
 
-  public static void Report(Exception? exception) =>
-    Present(exception, wait: false);
-
-  public static void ReportBlocking(Exception? exception) =>
-    Present(exception, wait: true);
-
-  private static void Present(Exception? exception, bool wait) {
-    if (exception is null)
-      return;
-    var report = ErrorReport.Capture(exception);
-    var dispatcher = TryDispatcher();
-    if (dispatcher is null) {
-      if (wait)
-        ShowStandalone(report);
-      return;
-    }
-
-    if (dispatcher.CheckAccess()) {
-      if (wait)
-        ShowUntilClosed(report);
-      else
-        _ = ShowAsync(report);
-      return;
-    }
-
-    if (wait)
-      dispatcher.Invoke(() => ShowUntilClosed(report));
-    else
-      dispatcher.Post(() => _ = ShowAsync(report));
+  public static void Report(Exception? exception) {
+    Ensure();
+    CoreErrorDialog.Report(exception);
   }
 
-  private static Dispatcher? TryDispatcher() {
-    try {
-      return Dispatcher.UIThread;
-    }
-    catch {
-      return null;
-    }
+  public static void ReportBlocking(Exception? exception) {
+    Ensure();
+    CoreErrorDialog.ReportBlocking(exception);
   }
 
-  private static async Task ShowAsync(string report) {
-    if (Interlocked.Exchange(ref _open, 1) != 0)
+  private static void Ensure() {
+    if (Interlocked.Exchange(ref _ready, 1) != 0)
       return;
-    try {
-      var window = Create(report);
-      var owner = ActiveWindow();
-      if (owner is { IsVisible: true }) {
-        window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        await window.ShowDialog(owner);
-        return;
+
+    CoreErrorDialog.Use(new DesktopErrorOptions {
+      Capture = ErrorReport.Capture,
+      Text = () => new DesktopErrorText {
+        Title = AppInfo.ProductName,
+        Hint = "Something went wrong. The details below are also saved under Help → Logs."
       }
-
-      window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-      var closed = new TaskCompletionSource();
-      window.Closed += (_, _) => closed.TrySetResult();
-      window.Show();
-      await closed.Task;
-    }
-    catch {
-    }
-    finally {
-      Interlocked.Exchange(ref _open, 0);
-    }
-  }
-
-  private static void ShowUntilClosed(string report) {
-    if (Interlocked.Exchange(ref _open, 1) != 0)
-      return;
-    try {
-      var window = Create(report);
-      var owner = ActiveWindow();
-      var closed = false;
-      window.Closed += (_, _) => closed = true;
-      if (owner is { IsVisible: true }) {
-        window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        window.Show(owner);
-      }
-      else {
-        window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        window.Show();
-      }
-
-      var dispatcher = Dispatcher.UIThread;
-      while (!closed)
-        dispatcher.RunJobs();
-    }
-    catch {
-    }
-    finally {
-      Interlocked.Exchange(ref _open, 0);
-    }
-  }
-
-  private static void ShowStandalone(string report) {
-    if (Interlocked.Exchange(ref _open, 1) != 0)
-      return;
-    try {
-      AppBuilder.Configure<Application>()
-        .UsePlatformDetect()
-        .AfterSetup(builder => {
-          if (builder.Instance?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime life)
-            return;
-          life.ShutdownMode = ShutdownMode.OnMainWindowClose;
-          life.MainWindow = Create(report);
-        })
-        .StartWithClassicDesktopLifetime([]);
-    }
-    catch {
-    }
-    finally {
-      Interlocked.Exchange(ref _open, 0);
-    }
-  }
-
-  private static ErrorWindow Create(string report) =>
-    new() {
-      DataContext = new ErrorReportViewModel(report),
-      WindowStartupLocation = WindowStartupLocation.CenterScreen
-    };
-
-  private static Window? ActiveWindow() {
-    if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime life)
-      return null;
-    foreach (var window in life.Windows) {
-      if (window.IsActive && window is not ErrorWindow)
-        return window;
-    }
-
-    return life.MainWindow is ErrorWindow ? null : life.MainWindow;
+    });
   }
 }

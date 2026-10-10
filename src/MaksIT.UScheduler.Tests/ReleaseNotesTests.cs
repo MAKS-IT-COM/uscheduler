@@ -55,11 +55,12 @@ public class ReleaseNotesTests {
 
   [Fact]
   public void Shipped_notes_keep_older_work_out_of_the_current_version() {
-    var notes = ReleaseNotes.AddedSince(ReleaseNotes.Text(), seenVersion: null, currentVersion: "1.4.0");
+    var notes = ReleaseNotes.AddedSince(ReleaseNotes.Text(), seenVersion: null, currentVersion: "1.5.0");
 
     var note = Assert.Single(notes);
-    Assert.Equal("1.4.0", note.Version);
-    Assert.Contains(note.Added, line => line.Contains("What's New", StringComparison.Ordinal));
+    Assert.Equal("1.5.0", note.Version);
+    Assert.Contains(note.Added, line => line.Contains("Processes", StringComparison.Ordinal));
+    Assert.DoesNotContain(note.Added, line => line.Contains("What's New", StringComparison.Ordinal));
     Assert.DoesNotContain(note.Added, line => line.Contains("logs folder", StringComparison.Ordinal));
     Assert.DoesNotContain(note.Added, line => line.Contains("Portable", StringComparison.Ordinal));
     Assert.DoesNotContain(note.Added, line => line.Contains("grayed out", StringComparison.Ordinal));

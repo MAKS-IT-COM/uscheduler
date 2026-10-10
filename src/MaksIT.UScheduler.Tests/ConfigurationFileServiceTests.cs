@@ -14,6 +14,7 @@ public class ConfigurationFileServiceTests {
   [Fact]
   public void Save_to_new_file_writes_only_configuration() {
     var path = Path.Combine(Path.GetTempPath(), $"uscheduler-{Guid.NewGuid():N}.json");
+
     try {
       var service = new ConfigurationFileService(path);
       service.Save(new Configuration {
@@ -93,6 +94,7 @@ public class ConfigurationFileServiceTests {
   [Fact]
   public void Save_round_trips_powershell_entries() {
     var path = Path.Combine(Path.GetTempPath(), $"uscheduler-{Guid.NewGuid():N}.json");
+
     try {
       var service = new ConfigurationFileService(path);
       service.Save(new Configuration {
@@ -138,11 +140,12 @@ public class HostPathsTests {
   }
 
   [Fact]
-  public void DetectServiceBinPath_finds_worker_next_to_ui() {
+  public void FindWorkerDirectory_finds_executable_in_start_directory() {
     var root = Path.Combine(Path.GetTempPath(), $"uscheduler-detect-{Guid.NewGuid():N}");
     Directory.CreateDirectory(root);
     var exeName = HostServiceManager.GetExecutableFileName();
     File.WriteAllBytes(Path.Combine(root, exeName), [0]);
+
     try {
       Assert.Equal(Path.GetFullPath(root), HostPaths.FindWorkerDirectory(root));
     }
@@ -177,6 +180,7 @@ public class HostPathsTests {
   public void FindPortableRoot_returns_null_without_marker() {
     var root = Path.Combine(Path.GetTempPath(), $"uscheduler-no-portable-{Guid.NewGuid():N}");
     Directory.CreateDirectory(root);
+
     try {
       Assert.Null(HostPaths.FindPortableRoot(root));
       Assert.False(HostPaths.IsPortableLayout(root));
@@ -191,6 +195,7 @@ public class HostPathsTests {
     var root = Path.Combine(Path.GetTempPath(), $"uscheduler-portable-{Guid.NewGuid():N}");
     Directory.CreateDirectory(root);
     File.WriteAllText(Path.Combine(root, HostPaths.PortableMarkerFileName), HostPaths.PortableMarkerContent);
+
     try {
       Assert.Equal(Path.GetFullPath(root), HostPaths.FindPortableRoot(root));
       Assert.True(HostPaths.IsPortableLayout(root));
@@ -212,6 +217,7 @@ public class HostPathsTests {
     var worker = Path.Combine(root, "MaksIT.UScheduler");
     Directory.CreateDirectory(worker);
     File.WriteAllText(Path.Combine(root, HostPaths.PortableMarkerFileName), HostPaths.PortableMarkerContent);
+
     try {
       Assert.Equal(Path.GetFullPath(root), HostPaths.FindPortableRoot(worker));
     }
@@ -225,6 +231,7 @@ public class HostPathsTests {
     var root = Path.Combine(Path.GetTempPath(), $"uscheduler-portable-defaults-{Guid.NewGuid():N}");
     Directory.CreateDirectory(root);
     File.WriteAllText(Path.Combine(root, HostPaths.PortableMarkerFileName), HostPaths.PortableMarkerContent);
+
     try {
       var config = new Configuration {
         LogDir = HostPaths.DefaultLogDirectory,
@@ -310,6 +317,7 @@ public class HostPathsTests {
   public void ResolveScriptPath_uses_scripts_dir() {
     var dir = Path.Combine(Path.GetTempPath(), $"uscheduler-scripts-{Guid.NewGuid():N}");
     Directory.CreateDirectory(dir);
+
     try {
       var config = new Configuration { ScriptsDir = dir };
       var resolved = config.ResolveScriptPath(Path.Combine("File-Sync", "file-sync.ps1"));
