@@ -5,6 +5,10 @@
       "File": "scripts.png"
     },
     {
+      "Id": "launch",
+      "File": "launch.png"
+    },
+    {
       "Id": "processes",
       "File": "processes.png"
     },

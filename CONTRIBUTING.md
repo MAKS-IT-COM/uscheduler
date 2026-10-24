@@ -185,6 +185,7 @@ Store listing copy:
 | Copyright, additional license terms, Developed by | [packaging/microsoft-store/additional-info.md](packaging/microsoft-store/additional-info.md) |
 | Restricted capability `runFullTrust` | [packaging/microsoft-store/restricted-capabilities.md](packaging/microsoft-store/restricted-capabilities.md) |
 | Store logos (9:16 poster, 1:1 box art, app tiles) | [packaging/microsoft-store/logos.md](packaging/microsoft-store/logos.md) |
+| Screenshot order (`<!-- microsoft-store N -->`) | [docs/features.md](docs/features.md) |
 
 ### System requirements (Properties)
 

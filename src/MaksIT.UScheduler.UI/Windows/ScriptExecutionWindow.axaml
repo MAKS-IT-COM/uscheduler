@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:MaksIT.UScheduler.UI.Controls"
+        xmlns:footer="using:MaksIT.UScheduler.UI.Controls.Footer"
+        xmlns:vm="using:MaksIT.UScheduler.UI.ViewModels"
+        x:Class="MaksIT.UScheduler.UI.Windows.ScriptExecutionWindow"
+        Title="{Binding Title}"
+        Icon="/Assets/icon.ico"
+        Width="860"
+        Height="520"
+        MinWidth="520"
+        MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="True">
+  <DockPanel Margin="16">
+    <footer:WindowFooter x:Name="Actions"
+                         DockPanel.Dock="Bottom"
+                         Margin="0,16,0,0"
+                         Spacing="8" />
+    <Panel>
+      <ListBox Name="OutputList"
+               ItemsSource="{Binding Lines}"
+               Background="#0C0C0C"
+               BorderThickness="0"
+               Padding="12,10"
+               FontFamily="Cascadia Mono, Cascadia Code, monospace"
+               FontSize="14"
+               ScrollViewer.HorizontalScrollBarVisibility="Auto">
+        <ListBox.Styles>
+          <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0,1" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+          </Style>
+          <Style Selector="ListBoxItem:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+          </Style>
+          <Style Selector="ListBoxItem:selected">
+            <Setter Property="Background" Value="#3A3A3A" />
+          </Style>
+        </ListBox.Styles>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:ScriptConsoleLine">
+            <controls:ScriptConsoleText TextWrapping="NoWrap" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <TextBlock Text="Waiting for output…"
+                 Foreground="#767676"
+                 FontFamily="Cascadia Mono, Cascadia Code, monospace"
+                 FontSize="14"
+                 Margin="12,10,0,0"
+                 IsHitTestVisible="False"
+                 IsVisible="{Binding !HasOutput}" />
+    </Panel>
+  </DockPanel>
+</Window>

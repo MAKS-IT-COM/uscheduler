@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-24
+
+### Added
+
+- **Launch** writes the script log the same way a scheduled run does, and opens a window that follows new lines until the run finishes. Lines are colored by the `Write-Log` level. The footer shows Running, then Finished. **Copy** puts the shown text on the clipboard. A second launch of the same script uses the window that is already open and follows from that new run. The scheduler's finished line stays in the file log and is not shown in the window.
+
+### Changed
+
+- `SchedulerTemplate.psm1` is 1.0.3. `Write-Log` writes `[Level] message` to the output stream unless the host is an interactive console, so a launch from the window is recorded in the script log. An interactive console still prints a colored line with a timestamp.
+- The README lists each screen in one line. Screen notes are in `docs/features.md`. The Microsoft Store description and product features include Launch following the script log.
+- Synced RepoUtils. The release script accepts `-InstallOnly` (version plugin and Helm install only; no build or push). Npm plugins are no longer vendored. `CollectCoverage`, `ContainerEngineProbe`, and `DiscoverPackageArtifacts` are included.
+- The README shows every screen. A `microsoft-store` comment above an image is the Store listing order, the same marks as in `docs/features.md`. The screenshot tour also saves Launch, and log screenshots show a short excerpt.
+
+### Fixed
+
+- The launch window status uses the body text color, so Running and Finished stay visible.
+
 ## [1.5.0] - 2026-10-10
 
 ### Added

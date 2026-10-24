@@ -283,16 +283,7 @@ function New-WixPackageXml {
         [string]$Architecture = 'x64',
 
         [Parameter(Mandatory = $false)]
-        [string]$IconPath,
-
-        [Parameter(Mandatory = $false)]
-        [string]$PostInstallCommand,
-
-        [Parameter(Mandatory = $false)]
-        [string]$QuietExecBinary = 'Wix4UtilCA_X64',
-
-        [Parameter(Mandatory = $false)]
-        [string]$QuietExecEntry = 'WixQuietExec64'
+        [string]$IconPath
     )
 
     $ns = 'http://wixtoolset.org/schemas/v4/wxs'
@@ -525,43 +516,6 @@ function New-WixPackageXml {
     $null = $desktopReg.SetAttribute('KeyPath', 'yes')
     $null = $desktop.AppendChild($desktopReg)
     $null = $package.AppendChild($desktop)
-
-    if (-not [string]::IsNullOrWhiteSpace($PostInstallCommand)) {
-        foreach ($propId in @('SCRIPTSFOLDER', 'LOGSFOLDER', 'INSTALLLAYOUT')) {
-            $dataProp = $xml.CreateElement('Property', $ns)
-            $null = $dataProp.SetAttribute('Id', $propId)
-            $null = $dataProp.SetAttribute('Secure', 'yes')
-            if ($propId -eq 'INSTALLLAYOUT') {
-                $null = $dataProp.SetAttribute('Value', 'standard')
-            }
-
-            $null = $package.AppendChild($dataProp)
-        }
-
-        $setPrepare = $xml.CreateElement('SetProperty', $ns)
-        $null = $setPrepare.SetAttribute('Id', 'PrepareSchedulerData')
-        $null = $setPrepare.SetAttribute('Value', $PostInstallCommand)
-        $null = $setPrepare.SetAttribute('Before', 'PrepareSchedulerData')
-        $null = $setPrepare.SetAttribute('Sequence', 'execute')
-        $null = $package.AppendChild($setPrepare)
-
-        $prepareAction = $xml.CreateElement('CustomAction', $ns)
-        $null = $prepareAction.SetAttribute('Id', 'PrepareSchedulerData')
-        $null = $prepareAction.SetAttribute('BinaryRef', $QuietExecBinary)
-        $null = $prepareAction.SetAttribute('DllEntry', $QuietExecEntry)
-        $null = $prepareAction.SetAttribute('Execute', 'deferred')
-        $null = $prepareAction.SetAttribute('Impersonate', 'no')
-        $null = $prepareAction.SetAttribute('Return', 'check')
-        $null = $package.AppendChild($prepareAction)
-
-        $sequence = $xml.CreateElement('InstallExecuteSequence', $ns)
-        $custom = $xml.CreateElement('Custom', $ns)
-        $null = $custom.SetAttribute('Action', 'PrepareSchedulerData')
-        $null = $custom.SetAttribute('After', 'InstallFiles')
-        $null = $custom.SetAttribute('Condition', 'NOT REMOVE~="ALL"')
-        $null = $sequence.AppendChild($custom)
-        $null = $package.AppendChild($sequence)
-    }
 
     $feature = $xml.CreateElement('Feature', $ns)
     $null = $feature.SetAttribute('Id', 'Main')
@@ -1258,13 +1212,7 @@ function New-WixBundleXml {
         [string]$InstallFolderName,
 
         [Parameter(Mandatory = $false)]
-        [string]$Architecture = 'x64',
-
-        [Parameter(Mandatory = $false)]
-        [string]$ScriptsDirectory,
-
-        [Parameter(Mandatory = $false)]
-        [string]$LogsDirectory
+        [string]$Architecture = 'x64'
     )
 
     $escapedName = [System.Security.SecurityElement]::Escape($AppName)
@@ -1316,22 +1264,6 @@ function New-WixBundleXml {
     }
     $escapedFolder = [System.Security.SecurityElement]::Escape($folderPath)
     $escapedShortcutKey = [System.Security.SecurityElement]::Escape("Software\$Manufacturer\$AppName")
-    $dataVariables = ''
-    $dataProperties = ''
-    if (-not [string]::IsNullOrWhiteSpace($ScriptsDirectory) -and -not [string]::IsNullOrWhiteSpace($LogsDirectory)) {
-        $escapedScripts = [System.Security.SecurityElement]::Escape($ScriptsDirectory)
-        $escapedLogs = [System.Security.SecurityElement]::Escape($LogsDirectory)
-        $dataVariables = @"
-    <Variable Name="InstallLayout" Type="string" Value="standard" bal:Overridable="yes" />
-    <Variable Name="ScriptsDirectory" Type="string" Value="$escapedScripts" bal:Overridable="yes" />
-    <Variable Name="LogsDirectory" Type="string" Value="$escapedLogs" bal:Overridable="yes" />
-"@
-        $dataProperties = @"
-        <MsiProperty Name="INSTALLLAYOUT" Value="[InstallLayout]" />
-        <MsiProperty Name="SCRIPTSFOLDER" Value="[ScriptsDirectory]" />
-        <MsiProperty Name="LOGSFOLDER" Value="[LogsDirectory]" />
-"@
-    }
 
     # WiX v7 Bundle has no Scope attribute (WIX0004). MSI Package/@Scope plus
     # InstallFolder tokens decide per-machine vs per-user; Burn infers bundle scope.
@@ -1342,7 +1274,6 @@ function New-WixBundleXml {
     <Variable Name="InstallFolder" Type="formatted" Value="$escapedFolder" bal:Overridable="yes" />
     <Variable Name="InstallDesktopShortcut" Type="numeric" Value="0" bal:Overridable="yes" />
     <Variable Name="DesktopShortcutFound" Type="string" Value="" bal:Overridable="yes" />
-$dataVariables
     <util:RegistrySearch Id="DesktopShortcutFoundSearch" Variable="DesktopShortcutFound" Root="HKCU" Key="$escapedShortcutKey" Value="desktop" Result="exists" />
     <BootstrapperApplication>
       <bal:WixStandardBootstrapperApplication Theme="$theme" LicenseUrl=""$logoAttrs />
@@ -1352,7 +1283,6 @@ $dataVariables
         <MsiProperty Name="INSTALLFOLDER" Value="[InstallFolder]" />
         <MsiProperty Name="INSTALLDESKTOPSHORTCUT" Value="[InstallDesktopShortcut]" />
         <MsiProperty Name="DESKTOPSHORTCUTFOUND" Value="[DesktopShortcutFound]" />
-$dataProperties
       </MsiPackage>
     </Chain>
   </Bundle>

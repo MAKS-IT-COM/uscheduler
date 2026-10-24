@@ -15,9 +15,11 @@
     Close UScheduler first. It overwrites settings.json when it exits.
 
     Each view produces <id>.png for that window.
-    With no -Views, the tour saves scripts, processes, logs, script-logs, settings,
-    about, and program-log. scripts selects the first script when one is listed.
+    With no -Views, the tour saves scripts, launch, processes, logs, script-logs,
+    settings, about, and program-log. scripts selects the first script when one is listed.
+    launch opens the follow window on a sample finished run.
     processes selects the first program, or shows a sample row when the list is empty.
+    logs selects the first service log and shows one check that launches scripts. script-logs shows the lines around the latest Success or Error.
     -Views limits the run to those ids.
 
     Sizes are Avalonia device-independent pixels. PNGs are 96 DPI device pixels.

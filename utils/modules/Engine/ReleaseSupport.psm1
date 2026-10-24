@@ -266,4 +266,61 @@ function Get-PreferredReleaseBranch {
     return "main"
 }
 
-Export-ModuleMember -Function Assert-WorkingTreeClean, Initialize-ReleaseStageContext, New-EngineContext, Get-PreferredReleaseBranch
+function Select-HelmInstallPlugins {
+    <#
+    .SYNOPSIS
+        Keeps the release version plugin and HelmSelfDeploy for an OCI install without build or push.
+
+    .DESCRIPTION
+        Install-Helm-*.bat passes -InstallOnly. The chart and images are already in OCI, so compile,
+        test, image build, image push, and HelmPush are not run. The version plugin still supplies
+        the chart tag (shared.version). HelmSelfDeploy dryRun is rejected: that path needs the local
+        package HelmPush keeps in the same run.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$Plugins,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptDir
+    )
+
+    $versionPlugins = @(Get-EnabledVersionPlugins -Plugins $Plugins -ScriptDir $ScriptDir)
+    if ($versionPlugins.Count -eq 0) {
+        throw "Install-only Helm requires exactly one enabled release version plugin (providesVersion) so the OCI chart tag can be resolved. Build and push plugins are not run."
+    }
+
+    if ($versionPlugins.Count -gt 1) {
+        $names = ($versionPlugins | ForEach-Object { [string]$_.name }) -join ', '
+        throw "Install-only Helm requires exactly one enabled release version plugin. Found: $names."
+    }
+
+    $deployPlugins = @($Plugins | Where-Object {
+            $null -ne $_ -and
+            $_.enabled -and
+            [string]$_.name -eq 'HelmSelfDeploy'
+        })
+
+    if ($deployPlugins.Count -eq 0) {
+        throw "Install-only Helm requires an enabled HelmSelfDeploy plugin. The chart is installed from OCI; image build, image push, and HelmPush are not run."
+    }
+
+    if ($deployPlugins.Count -gt 1) {
+        throw "Install-only Helm found multiple enabled HelmSelfDeploy plugins."
+    }
+
+    $deployPlugin = $deployPlugins[0]
+    if ($deployPlugin.PSObject.Properties.Name -contains 'dryRun' -and $null -ne $deployPlugin.dryRun -and [bool]$deployPlugin.dryRun) {
+        throw "Install-only Helm cannot use HelmSelfDeploy dryRun. That path needs the local package from HelmPush in the same run. Omit dryRun to install the chart already published to OCI."
+    }
+
+    $versionName = [string]$versionPlugins[0].name
+    return @($Plugins | Where-Object {
+            $null -ne $_ -and
+            $_.enabled -and
+            ([string]$_.name -eq $versionName -or [string]$_.name -eq 'HelmSelfDeploy')
+        })
+}
+
+Export-ModuleMember -Function Assert-WorkingTreeClean, Initialize-ReleaseStageContext, New-EngineContext, Get-PreferredReleaseBranch, Select-HelmInstallPlugins

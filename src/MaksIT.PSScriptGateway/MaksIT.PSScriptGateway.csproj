@@ -12,9 +12,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MaksIT.Core" Version="1.6.8" />
-    <PackageReference Include="MaksIT.Results" Version="2.0.3" />
-    <PackageReference Include="System.Management.Automation" Version="7.6.3" />
+    <PackageReference Include="MaksIT.Core" Version="1.6.10" />
+    <PackageReference Include="MaksIT.Results" Version="2.0.4" />
+    <PackageReference Include="System.Management.Automation" Version="7.6.8" />
   </ItemGroup>
 
 </Project>

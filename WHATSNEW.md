@@ -4,6 +4,10 @@ Short notes shown in the app after an upgrade. The full history, including maint
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-24
+
+- Launch writes the script log as usual and opens a window that follows the run. A second launch of the same script uses the window that is already open.
+
 ## [1.5.0] - 2026-10-10
 
 - The schedule tab is named Scripts.

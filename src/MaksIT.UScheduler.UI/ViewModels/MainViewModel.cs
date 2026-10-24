@@ -413,8 +413,23 @@ public partial class MainViewModel : ObservableObject {
       return;
     }
 
+    var logFile = ScriptLogFollow.Today(ResolvedLogDirectory, path);
+    var start = ScriptLogFollow.Length(logFile);
     var result = await ScriptRunChannel.RequestAsync(path);
-    await _dialogs.ShowMessageAsync("Launch Script", result.Message);
+
+    if (!result.Accepted) {
+      await _dialogs.ShowMessageAsync("Launch Script", result.Message);
+
+      return;
+    }
+
+    if (string.IsNullOrWhiteSpace(ResolvedLogDirectory)) {
+      await _dialogs.ShowMessageAsync("Launch Script", result.Message);
+
+      return;
+    }
+
+    _dialogs.ShowScriptRun(SelectedScript.Name, logFile, start);
   }
 
   private bool CanLaunchScript() =>
@@ -623,6 +638,84 @@ public partial class MainViewModel : ObservableObject {
 
   partial void OnSelectedLogFileChanged(LogFileInfo? value) {
     LogContent = value is null ? string.Empty : _logViewerService.ReadLogFile(value.FullPath);
+  }
+
+  /// <summary>
+  /// Selects a log file and a short excerpt that fits the window, so a screenshot shows the viewer.
+  /// A script log prefers the lines around the latest Success or Error.
+  /// </summary>
+  public void PrepareLogsForSnapshot(bool scriptLogs) {
+    SelectedLogTab = scriptLogs ? 1 : 0;
+
+    LogFileInfo? file;
+
+    if (scriptLogs) {
+      if (ScriptLogFolders.Count > 0 && string.IsNullOrEmpty(SelectedScriptLogFolder))
+        SelectedScriptLogFolder = ScriptLogFolders[0];
+
+      file = ScriptLogFiles.FirstOrDefault();
+    }
+    else {
+      file = ServiceLogs.FirstOrDefault();
+    }
+
+    SelectedLogFile = file;
+
+    if (file is null || string.IsNullOrEmpty(file.FullPath) || !File.Exists(file.FullPath))
+      return;
+
+    LogContent = scriptLogs
+      ? ExcerptAroundLastResult(file.FullPath)
+      : ServiceExcerpt(file.FullPath);
+  }
+
+  private static string ServiceExcerpt(string path) {
+    var lines = File.ReadLines(path).ToList();
+
+    for (var i = lines.Count - 1; i >= 0; i--) {
+      if (!lines[i].Contains("Checking for PowerShell scripts to run", StringComparison.Ordinal))
+        continue;
+
+      var end = Math.Min(lines.Count, i + 28);
+      var stop = end;
+      var launching = false;
+
+      for (var j = i; j < end; j++) {
+        if (lines[j].Contains("Launching PowerShell script", StringComparison.Ordinal))
+          launching = true;
+
+        if (lines[j].Contains("Attempting to terminate", StringComparison.Ordinal)
+            || lines[j].Contains("Application is shutting down", StringComparison.Ordinal)) {
+          stop = j;
+          break;
+        }
+      }
+
+      if (launching && stop > i)
+        return string.Join('\n', lines.GetRange(i, stop - i));
+    }
+
+    return string.Join('\n', lines.TakeLast(36));
+  }
+
+  private static string ExcerptAroundLastResult(string path) {
+    var lines = File.ReadLines(path).ToList();
+    var index = -1;
+
+    for (var i = lines.Count - 1; i >= 0; i--) {
+      if (lines[i].Contains("[Success]", StringComparison.Ordinal)
+          || lines[i].Contains("[Error]", StringComparison.Ordinal)) {
+        index = i;
+        break;
+      }
+    }
+
+    if (index < 0)
+      return string.Join('\n', lines.TakeLast(36));
+
+    var start = Math.Max(0, index - 28);
+    var end = Math.Min(lines.Count, index + 8);
+    return string.Join('\n', lines.GetRange(start, end - start));
   }
 
   private string ResolvedLogDirectory =>

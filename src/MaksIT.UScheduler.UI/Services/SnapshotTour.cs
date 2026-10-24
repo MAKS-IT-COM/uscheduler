@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using MaksIT.Core.Desktop.Snapshots;
 using MaksIT.Core.UI.Snapshots;
+using MaksIT.UScheduler.Shared;
 using MaksIT.UScheduler.UI.ViewModels;
 using MaksIT.UScheduler.UI.Windows;
 
@@ -60,6 +61,12 @@ internal static class SnapshotTour {
     AppViewSnapshotOptions options,
     Manifest manifest,
     string view) {
+    if (view.Equals("launch", StringComparison.OrdinalIgnoreCase)) {
+      await CaptureLaunchAsync(window, options, manifest);
+
+      return;
+    }
+
     if (view.Equals("about", StringComparison.OrdinalIgnoreCase)
         || view.Equals("program-log", StringComparison.OrdinalIgnoreCase)) {
       await CaptureDialogAsync(window, options, manifest, view);
@@ -83,7 +90,7 @@ internal static class SnapshotTour {
     if (view.Equals("logs", StringComparison.OrdinalIgnoreCase)
         || view.Equals("script-logs", StringComparison.OrdinalIgnoreCase)) {
       model.SelectedPageIndex = 2;
-      model.SelectedLogTab = view.Equals("script-logs", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+      model.PrepareLogsForSnapshot(view.Equals("script-logs", StringComparison.OrdinalIgnoreCase));
 
       return;
     }
@@ -102,6 +109,43 @@ internal static class SnapshotTour {
     if (model.SelectedScript is null && model.Scripts.Count > 0)
       model.SelectedScript = model.Scripts[0];
   }
+
+  private static async Task CaptureLaunchAsync(
+    Window owner,
+    AppViewSnapshotOptions options,
+    Manifest manifest) {
+    var path = Path.Combine(Path.GetTempPath(), "uscheduler-launch-" + Guid.NewGuid().ToString("n") + ".log");
+    await File.WriteAllTextAsync(path, SampleLaunchLog());
+
+    try {
+      var dialog = new ScriptExecutionWindow(new ScriptExecutionViewModel("File Sync", path, 0));
+
+      if (!double.IsNaN(owner.Width) && owner.Width > 0 && !double.IsNaN(owner.Height) && owner.Height > 0) {
+        dialog.Width = owner.Width;
+        dialog.Height = owner.Height;
+      }
+
+      dialog.Show(owner);
+      await AppViewSnapshot.SettleAsync(options.SettleMilliseconds);
+      manifest.Shots.Add(Shot(dialog, options, "launch"));
+      dialog.Close();
+    }
+    finally {
+      if (File.Exists(path))
+        File.Delete(path);
+    }
+  }
+
+  /// <summary>
+  /// A finished File Sync run, so the launch window shows colored <c>Write-Log</c> lines and Finished.
+  /// </summary>
+  private static string SampleLaunchLog() =>
+    "2026-10-24T18:00:00.0000000Z [Information] [PS Output] [Info] Manual execution started\n"
+    + "2026-10-24T18:00:01.0000000Z [Information] [PS Output] [Info] Executing business logic...\n"
+    + "2026-10-24T18:00:02.0000000Z [Information] [PS Output] [Success] Copied 12 files\n"
+    + "2026-10-24T18:00:03.0000000Z [Warning] [PS Output] [Warning] One file was skipped\n"
+    + "2026-10-24T18:00:04.0000000Z [Information] [PS Output] [Info] Done\n"
+    + "2026-10-24T18:00:05.0000000Z [Information] " + ScriptRunMarkers.FinishedMessage + "\n";
 
   private static async Task CaptureDialogAsync(
     Window owner,

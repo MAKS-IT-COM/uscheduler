@@ -41,6 +41,12 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.6.0" date="2026-10-24">
+      <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.6.0/CHANGELOG.md</url>
+      <description>
+        <p>Launch writes the script log and opens a window that follows the run. A second launch of the same script uses the window that is already open.</p>
+      </description>
+    </release>
     <release version="1.5.0" date="2026-10-10">
       <url type="details">https://github.com/MAKS-IT-COM/uscheduler/blob/v1.5.0/CHANGELOG.md</url>
       <description>

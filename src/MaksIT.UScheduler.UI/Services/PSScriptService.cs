@@ -2,6 +2,7 @@ using System.Management.Automation;
 using System.Collections.Concurrent;
 using System.Management.Automation.Language;
 using System.Management.Automation.Runspaces;
+using MaksIT.UScheduler.Shared;
 using MaksIT.UScheduler.Shared.Helpers;
 using MaksIT.UScheduler.Shared.Extensions;
 
@@ -62,11 +63,19 @@ public sealed class PSScriptService : IPSScriptService {
 
     if (!File.Exists(resolvedPath)) {
       _logger.LogError($"Script file {resolvedPath} does not exist");
+
+      if (!automated)
+        LogManualOutcome(resolvedPath, $"Script file {resolvedPath} does not exist");
+
       return;
     }
 
     if (!EnsureDependenciesUnblocked(resolvedPath)) {
       _logger.LogError($"Script or dependencies for {resolvedPath} could not be unblocked. Aborting execution.");
+
+      if (!automated)
+        LogManualOutcome(resolvedPath, $"Script or dependencies for {resolvedPath} could not be unblocked.");
+
       return;
     }
 
@@ -79,8 +88,10 @@ public sealed class PSScriptService : IPSScriptService {
       return;
     }
 
+    ILogger? scriptLogger = null;
+
     try {
-      // Set execution policy
+      scriptLogger = _loggerFactory.CreateFolderLogger(resolvedPath);
       var scriptPolicy = signed ? "AllSigned" : "Unrestricted";
       ps.AddScript($"Set-ExecutionPolicy -Scope Process -ExecutionPolicy {scriptPolicy}");
       await Task.Factory.FromAsync(ps.BeginInvoke(), ps.EndInvoke);
@@ -89,8 +100,13 @@ public sealed class PSScriptService : IPSScriptService {
         ps.Commands.Clear();
         ps.AddScript($"Get-AuthenticodeSignature \"{resolvedPath}\"");
         var signatureResults = await Task.Factory.FromAsync(ps.BeginInvoke(), ps.EndInvoke);
+
         if (signatureResults.Count == 0 || ((Signature)signatureResults[0].BaseObject).Status != SignatureStatus.Valid) {
           _logger.LogWarning($"Script {resolvedPath} signature is invalid. Correct and restart the service.");
+
+          if (!automated)
+            scriptLogger.LogWarning($"[PS Output] [Warning] Script {resolvedPath} signature is invalid.");
+
           return;
         }
       }
@@ -109,36 +125,85 @@ public sealed class PSScriptService : IPSScriptService {
 
       _logger.LogInformation($"Added parameters: Automated={automated}, CurrentDateTimeUtc={currentDateTimeUtcString}");
 
-      // Execute asynchronously
-      var outputResults = await Task.Factory.FromAsync(ps.BeginInvoke(), ps.EndInvoke);
-
-      #region Script Output Logging
-      var scriptLogger = _loggerFactory.CreateFolderLogger(resolvedPath);
-
-      // Log standard output
-      if (outputResults != null && outputResults.Count > 0) {
-        foreach (var outputItem in outputResults) {
-          scriptLogger.LogInformation($"[PS Output] {outputItem}");
-        }
-      }
-
-      // Log errors
-      if (ps.Streams.Error.Count > 0) {
-        foreach (var errorItem in ps.Streams.Error) {
-          scriptLogger.LogError($"[PS Error] {errorItem}");
-        }
-      }
-      #endregion
+      await InvokeAndLogAsync(ps, scriptLogger);
     }
     catch (OperationCanceledException) {
       _logger.LogInformation($"Stopping script {resolvedPath} due to cancellation request");
+
+      if (!automated)
+        scriptLogger?.LogInformation("[PS Output] [Info] Script canceled");
     }
     catch (Exception ex) {
       _logger.LogError($"Error running script {resolvedPath}: {ex.Message}");
+
+      if (!automated)
+        scriptLogger?.LogError($"[PS Error] {ex.Message}");
     }
     finally {
+      if (!automated)
+        scriptLogger?.LogInformation(ScriptRunMarkers.FinishedMessage);
+
       TerminateScript(resolvedPath);
       _logger.LogInformation($"Script {resolvedPath} completed and removed from running scripts");
+    }
+  }
+
+  /// <summary>
+  /// Writes one failure into the script log and marks the manual run finished so the progress window can close its watch.
+  /// </summary>
+  private void LogManualOutcome(string resolvedPath, string error) {
+    var scriptLogger = _loggerFactory.CreateFolderLogger(resolvedPath);
+    scriptLogger.LogError($"[PS Error] {error}");
+    scriptLogger.LogInformation(ScriptRunMarkers.FinishedMessage);
+  }
+
+  /// <summary>
+  /// Runs the current command and writes each output, error, and host line as it arrives.
+  /// </summary>
+  private static async Task InvokeAndLogAsync(PowerShell ps, ILogger scriptLogger) {
+    ps.Streams.ClearStreams();
+    var output = new PSDataCollection<PSObject>();
+
+    void OnOutput(object? _, DataAddedEventArgs e) {
+      if (e.Index < 0 || e.Index >= output.Count)
+        return;
+
+      var text = output[e.Index]?.BaseObject?.ToString();
+
+      if (!string.IsNullOrEmpty(text))
+        scriptLogger.LogInformation($"[PS Output] {text}");
+    }
+
+    void OnError(object? _, DataAddedEventArgs e) {
+      if (e.Index < 0 || e.Index >= ps.Streams.Error.Count)
+        return;
+
+      scriptLogger.LogError($"[PS Error] {ps.Streams.Error[e.Index]}");
+    }
+
+    void OnInformation(object? _, DataAddedEventArgs e) {
+      if (e.Index < 0 || e.Index >= ps.Streams.Information.Count)
+        return;
+
+      var text = ps.Streams.Information[e.Index].MessageData?.ToString();
+
+      if (!string.IsNullOrEmpty(text))
+        scriptLogger.LogInformation($"[PS Output] {text}");
+    }
+
+    output.DataAdded += OnOutput;
+    ps.Streams.Error.DataAdded += OnError;
+    ps.Streams.Information.DataAdded += OnInformation;
+
+    try {
+      var pending = ps.BeginInvoke<PSObject, PSObject>(null, output);
+      await Task.Factory.FromAsync(pending, ar => ps.EndInvoke(ar));
+    }
+    finally {
+      output.DataAdded -= OnOutput;
+      ps.Streams.Error.DataAdded -= OnError;
+      ps.Streams.Information.DataAdded -= OnInformation;
+      output.Dispose();
     }
   }
 

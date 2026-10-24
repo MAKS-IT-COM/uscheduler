@@ -22,6 +22,7 @@ public class SnapshotViewsTests {
   [InlineData("scripts", true)]
   [InlineData("Script-Logs", true)]
   [InlineData("processes", true)]
+  [InlineData("launch", true)]
   [InlineData("chat", false)]
   public void Known_ids_match_ignoring_case(string id, bool known) {
     Assert.Equal(known, SnapshotViews.IsKnown(id));

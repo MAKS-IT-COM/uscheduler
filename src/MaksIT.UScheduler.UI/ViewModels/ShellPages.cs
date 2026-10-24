@@ -68,7 +68,7 @@ public sealed partial class ScriptsPage : ObservableObject, IShellPage {
     if (_shell.SelectedScript is { IsCompatibleWithHost: true }) {
       items.Add(new FooterButton("Launch", _shell.LaunchScriptCommand) {
         Edge = FooterEdge.Trailing,
-        ToolTip = "Ask the running service to start this script"
+        ToolTip = "Ask the running service to start this script and follow its log"
       });
     }
 

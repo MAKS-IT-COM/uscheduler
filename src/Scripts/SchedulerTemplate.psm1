@@ -5,9 +5,9 @@
     Reusable PowerShell module for scheduled script execution with lock files,
     interval control, and credential management.
 .VERSION
-    1.0.2
+    1.0.3
 .DATE
-    2026-01-28
+    2026-10-23
 .NOTES
     - Provides Write-Log function with timestamp and level support
     - Provides Get-CredentialFromEnvVar for secure credential retrieval
@@ -17,8 +17,8 @@
 #>
 
 # Module Version (exported for external scripts to check version)
-$script:ModuleVersion = "1.0.2"
-$script:ModuleDate = "2026-01-28"
+$script:ModuleVersion = "1.0.3"
+$script:ModuleDate = "2026-10-23"
 
 # Module load confirmation
 Write-Verbose "SchedulerTemplate.psm1 v$ModuleVersion loaded ($ModuleDate)"
@@ -38,15 +38,15 @@ function Write-Log {
         'Error' = 'Red'
     }
 
-    if ($Automated) {
-        # Service logger adds timestamps, so only include level and message
+    # The scheduler records the output stream. A manual launch uses that same line.
+    # An interactive console keeps the colored host line, because that console is the window.
+    if ($Automated -or $Host.Name -ne 'ConsoleHost') {
         Write-Output "[$Level] $Message"
+        return
     }
-    else {
-        # Manual execution: include timestamp for better tracking
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        Write-Host "[$timestamp] [$Level] $Message" -ForegroundColor $colors[$Level]
-    }
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Write-Host "[$timestamp] [$Level] $Message" -ForegroundColor $colors[$Level]
 }
 
 function Get-CredentialFromEnvVar {

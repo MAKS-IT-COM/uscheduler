@@ -4,6 +4,7 @@ namespace MaksIT.UScheduler.UI.Services;
 public static class SnapshotViews {
   public static readonly string[] All = [
     "scripts",
+    "launch",
     "processes",
     "logs",
     "script-logs",

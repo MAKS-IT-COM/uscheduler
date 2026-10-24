@@ -8,6 +8,10 @@
 .NOTES
     Per-plugin dryRun on mutatesRemote plugins validates without remote mutation.
     There is no engine-wide dryRun switch — set dryRun on each plugin as needed.
+
+    -InstallOnly (Install-Helm-*.bat) keeps the version plugin and HelmSelfDeploy.
+    Compile, test, image build, image push, and HelmPush are skipped. The chart
+    must already be in OCI at the version the version plugin reports.
 #>
 
 # Keep a plain param block so unbound launcher arguments remain in $args for
@@ -17,6 +21,17 @@ param()
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
+$installOnly = $false
+$extensionArgs = [System.Collections.Generic.List[object]]::new()
+foreach ($argument in @($args)) {
+    if ([string]$argument -eq '-InstallOnly') {
+        $installOnly = $true
+        continue
+    }
+
+    $extensionArgs.Add($argument)
+}
+
 $srcDir = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 . (Join-Path $srcDir 'modules/Engine/Import-EngineModules.ps1')
@@ -24,7 +39,7 @@ Import-EngineModules -Engine Release
 
 $releaseExtension = $null
 if (Get-Command Initialize-ReleaseExtension -ErrorAction SilentlyContinue) {
-    $releaseExtension = Initialize-ReleaseExtension -ScriptDir $PSScriptRoot -ArgumentList $args
+    $releaseExtension = Initialize-ReleaseExtension -ScriptDir $PSScriptRoot -ArgumentList @($extensionArgs)
 }
 
 $settings = if ($null -ne $releaseExtension) {
@@ -35,9 +50,29 @@ else {
 }
 
 $configuredPlugins = Get-ConfiguredPlugins -Settings $settings
+if ($installOnly) {
+    $enabledBefore = @($configuredPlugins | Where-Object { $_.enabled } | ForEach-Object { [string]$_.name })
+    $configuredPlugins = @(Select-HelmInstallPlugins -Plugins $configuredPlugins -ScriptDir $PSScriptRoot)
+    $kept = @($configuredPlugins | ForEach-Object { [string]$_.name })
+    $skipped = @($enabledBefore | Where-Object { $_ -notin $kept })
+    if ($skipped.Count -gt 0) {
+        Write-Log -Level 'INFO' -Message "Install-only: skipping $($skipped -join ', '). Chart and images are taken from OCI."
+    }
+
+    Write-Log -Level 'INFO' -Message "Install-only: running $($kept -join ', ')."
+}
+
 Initialize-RepoUtilsVaultSecrets -Settings $settings -Plugins $configuredPlugins
 
-$releaseBanner = if ($null -ne $releaseExtension) {
+$releaseBanner = if ($installOnly) {
+    $modeLabel = 'ha'
+    if ($null -ne $releaseExtension -and $releaseExtension.ContextData.PSObject.Properties.Name -contains 'deployMode') {
+        $modeLabel = [string]$releaseExtension.ContextData.deployMode
+    }
+
+    "HELM INSTALL (deploy mode: $modeLabel; OCI chart, no build or push)"
+}
+elseif ($null -ne $releaseExtension) {
     $releaseExtension.StepBanner
 }
 else {
@@ -97,7 +132,11 @@ if (-not $releaseStageInitialized) {
 
 Write-Log -Level 'OK' -Message '=================================================='
 if ($releaseHadPluginFailures) {
-    Write-Log -Level 'ERROR' -Message 'RELEASE FAILED'
+    $failureLabel = if ($installOnly) { 'HELM INSTALL FAILED' } else { 'RELEASE FAILED' }
+    Write-Log -Level 'ERROR' -Message $failureLabel
+}
+elseif ($installOnly) {
+    Write-Log -Level 'OK' -Message 'HELM INSTALL COMPLETE'
 }
 elseif ($engineContext.PSObject.Properties.Name -contains 'skipPublishPlugins' -and $engineContext.skipPublishPlugins) {
     Write-Log -Level 'OK' -Message 'RUN COMPLETE (publish skipped by ReleasePublishGuard)'
@@ -110,7 +149,7 @@ else {
 }
 Write-Log -Level 'OK' -Message '=================================================='
 
-if ($engineContext.isNonReleaseBranch -and -not ($engineContext.PSObject.Properties.Name -contains 'skipPublishPlugins' -and $engineContext.skipPublishPlugins)) {
+if (-not $installOnly -and $engineContext.isNonReleaseBranch -and -not ($engineContext.PSObject.Properties.Name -contains 'skipPublishPlugins' -and $engineContext.skipPublishPlugins)) {
     $preferredReleaseBranch = Get-PreferredReleaseBranch -EngineContext $engineContext
     Write-Log -Level 'INFO' -Message "For publish, use an allowed branch (see ReleasePublishGuard.branches), e.g. '$preferredReleaseBranch', and satisfy the guard requirements."
 }
